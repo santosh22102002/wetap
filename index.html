@@ -2,628 +2,153 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MLBB Diamond Clicker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tap Coin Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* --- CSS STYLES --- */
-        :root {
-            --primary: #FFD700; /* Gold */
-            --secondary: #1e1e2e; /* Dark Bg */
-            --accent: #00bcd4; /* Cyan for diamonds */
-            --danger: #ff4757;
-            --text: #ffffff;
-            --nav-bg: #2d2d44;
-        }
-
         body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--secondary);
-            color: var(--text);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden; /* Prevent scrolling on main body */
-            user-select: none; /* Prevent text selection while tapping */
-            -webkit-user-select: none;
-        }
-
-        /* SCREEN CONTAINER */
-        #app-container {
-            flex: 1;
-            position: relative;
-            overflow-y: auto;
-            padding-bottom: 70px; /* Space for nav bar */
-        }
-
-        /* PAGES */
-        .page {
-            display: none;
-            padding: 20px;
-            text-align: center;
-            animation: fadeIn 0.3s ease;
-        }
-        
-        .page.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* --- HOME PAGE UI --- */
-        .score-container {
-            margin-top: 20px;
-            margin-bottom: 40px;
-        }
-
-        .score-label {
-            font-size: 14px;
-            opacity: 0.7;
-            margin-bottom: 5px;
-        }
-
-        .main-score {
-            font-size: 36px;
-            font-weight: 800;
-            color: var(--primary);
-            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-        }
-
-        /* Big Progress Bar */
-        .progress-wrapper {
-            width: 100%;
-            height: 10px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 10px;
-            margin-top: 10px;
+            background-color: #0f172a; /* Telegram Dark Theme Depth */
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
             overflow: hidden;
         }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), orange);
-            width: 0%; /* JS will update this */
-            transition: width 0.3s ease;
+        .coin-gradient {
+            background: radial-gradient(circle, #fcd34d 0%, #b45309 100%);
         }
-
-        /* The Coin */
-        .coin-wrapper {
-            margin: 20px auto;
-            width: 220px;
-            height: 220px;
-            position: relative;
-            cursor: pointer;
-            transition: transform 0.1s;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .coin-wrapper:active {
-            transform: scale(0.95);
-        }
-
-        .coin {
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at 30% 30%, #ffd700, #b8860b);
-            border-radius: 50%;
-            border: 8px solid #daa520;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 80px;
-        }
-
-        /* Floating +1 / +2 Animation */
-        .float-text {
-            position: absolute;
-            color: white;
-            font-weight: bold;
-            font-size: 24px;
-            pointer-events: none;
-            animation: floatUp 1s ease-out forwards;
-        }
-
-        @keyframes floatUp {
-            0% { opacity: 1; transform: translateY(0) scale(1); }
-            100% { opacity: 0; transform: translateY(-100px) scale(1.5); }
-        }
-
-        /* Bottom Controls */
-        .controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 30px;
-            padding: 0 10px;
-        }
-
-        .energy-box {
-            text-align: left;
-        }
-        
-        .energy-val {
-            font-size: 18px;
-            font-weight: bold;
-        }
-
-        .ability-btn {
-            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-            border: none;
-            padding: 12px 20px;
-            border-radius: 12px;
-            color: white;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .ability-btn:active {
-            transform: scale(0.95);
-        }
-
-        .ability-btn.active {
-            background: linear-gradient(135deg, #00b894, #55efc4);
-            pointer-events: none; /* Disable clicking while active */
-        }
-        
-        .refill-btn {
-            display: none; /* Hidden unless energy is 0 */
-            background: var(--danger);
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 8px;
-            margin-top: 5px;
-            font-size: 12px;
-            cursor: pointer;
-        }
-
-        /* --- LEADERBOARD UI --- */
-        .lb-header {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .lb-list {
-            list-style: none;
-            padding: 0;
-        }
-
-        .lb-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            align-items: center;
-        }
-
-        .lb-rank {
-            width: 30px;
-            height: 30px;
-            background: #444;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            margin-right: 10px;
-        }
-        
-        .lb-item:nth-child(1) .lb-rank { background: #FFD700; color: #000; }
-        .lb-item:nth-child(2) .lb-rank { background: #C0C0C0; color: #000; }
-        .lb-item:nth-child(3) .lb-rank { background: #CD7F32; color: #000; }
-
-        .lb-user { flex: 1; text-align: left; padding-left: 10px; }
-        .lb-score { color: var(--primary); font-weight: bold; }
-
-        .my-rank {
-            background: var(--accent);
-            color: #000;
-            position: fixed;
-            bottom: 75px;
-            left: 20px;
-            right: 20px;
-            padding: 15px;
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-between;
-            font-weight: bold;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
-        }
-
-        /* --- EARN UI --- */
-        .task-card {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .task-btn {
-            background: white;
-            color: black;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        /* --- NAV BAR --- */
-        .nav-bar {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            height: 70px;
-            background: var(--nav-bg);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            border-top: 1px solid rgba(255,255,255,0.05);
-            z-index: 100;
-        }
-
-        .nav-item {
-            color: rgba(255,255,255,0.5);
-            text-align: center;
-            font-size: 10px;
-            cursor: pointer;
-            transition: color 0.2s;
-            flex: 1;
-        }
-
-        .nav-item.active {
-            color: var(--primary);
-        }
-
-        .nav-icon {
-            font-size: 24px;
-            display: block;
-            margin-bottom: 4px;
-        }
-        
-        /* Modal Overlay for "Ads" */
-        .ad-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
-            z-index: 200;
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
-        }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--primary);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
+        .tab-content { display: none; }
+        .tab-content.active { display: flex; }
+        .active-tab-btn { border-bottom: 3px solid #fcd34d; color: #fcd34d; }
     </style>
 </head>
-<body>
+<body class="flex flex-col h-screen max-w-md mx-auto border-x border-slate-800">
 
-    <div id="ad-overlay" class="ad-overlay">
-        <div class="spinner"></div>
-        <h2>Watching Ad...</h2>
-        <p>Please wait <span id="ad-timer">3</span> seconds</p>
-    </div>
+    <header class="p-4 text-center border-bottom border-slate-800">
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest">Weekly Challenge Ends In: 4D 15H</p>
+        <p class="text-[10px] text-amber-500 mb-2">Secure Top 10 to win MLBB Weekly Diamond Pass</p>
+        <h1 id="coin-display" class="text-4xl font-black text-white">4800 COIN</h1>
+    </header>
 
-    <div id="app-container">
+    <main class="flex-grow flex flex-col px-6 overflow-y-auto pb-24">
         
-        <div id="home-page" class="page active">
-            <div class="score-container">
-                <div class="score-label">Weekly Score</div>
-                <div class="main-score" id="score-display">0</div>
-                <div class="progress-wrapper">
-                    <div class="progress-fill" id="score-progress"></div>
+        <section id="tap-tab" class="tab-content active flex-col items-center justify-center space-y-8 mt-10">
+            <div class="flex justify-between w-full px-4">
+                <button onclick="toggleModal('help-modal')" class="bg-slate-800 p-2 rounded-full w-10 h-10 flex items-center justify-center border border-slate-700">?</button>
+                <button onclick="toggleModal('id-modal')" class="bg-slate-800 p-2 rounded-full w-10 h-10 flex items-center justify-center border border-slate-700 text-[10px] font-bold">ID</button>
+            </div>
+
+            <div id="coin-btn" onclick="handleTap()" class="w-64 h-64 rounded-full coin-gradient shadow-[0_0_50px_rgba(251,191,36,0.3)] flex items-center justify-center cursor-pointer active:scale-95 transition-transform border-8 border-amber-600/50">
+                <span class="text-3xl font-black text-amber-900 drop-shadow-md">TAP ON COIN</span>
+            </div>
+
+            <div class="w-full space-y-2">
+                <div class="flex justify-center items-center gap-2 text-sm">
+                    <span>⚡</span> <span id="energy-text">390/500</span>
+                </div>
+                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
+                    <div id="energy-bar" class="bg-amber-400 h-full" style="width: 78%"></div>
                 </div>
             </div>
 
-            <div class="coin-wrapper" id="coin-btn">
-                <div class="coin">💎</div>
+            <div class="flex gap-4 w-full">
+                <button class="flex-1 bg-slate-800 py-3 rounded-xl text-xs font-bold border border-slate-700">AUTO TAP (ADS)</button>
+                <button class="flex-1 bg-slate-800 py-3 rounded-xl text-xs font-bold border border-slate-700">DOUBLE COIN (ADS)</button>
             </div>
+        </section>
 
-            <div class="controls">
-                <div class="energy-box">
-                    <div class="score-label">Energy</div>
-                    <div class="energy-val">⚡ <span id="energy-display">500</span> / 500</div>
-                    <button id="refill-btn" class="refill-btn">Watch Ad to Refill</button>
-                </div>
-                
-                <button id="ability-btn" class="ability-btn">
-                    <div id="ability-text">x2 Multiplier</div>
-                    <div style="font-size:10px; opacity:0.8;">Watch Ad</div>
-                </button>
+        <section id="earn-tab" class="tab-content flex-col space-y-4 pt-6">
+            <div class="earn-card bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                <h3 class="text-xs text-slate-400 mb-2 uppercase">Daily Log In</h3>
+                <div class="h-16 bg-slate-700/50 rounded-lg flex items-center justify-center">Claim +500 Coins</div>
             </div>
+            <div class="earn-card bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                <h3 class="text-xs text-slate-400 mb-2 uppercase">Referral Task</h3>
+                <div class="h-16 bg-slate-700/50 rounded-lg flex items-center justify-center">Invite 5 Friends</div>
+            </div>
+            <div class="earn-card bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                <h3 class="text-xs text-slate-400 mb-2 uppercase">Special Task</h3>
+                <div class="h-16 bg-slate-700/50 rounded-lg flex items-center justify-center">Follow Socials</div>
+            </div>
+        </section>
+
+        <section id="leaderboard-tab" class="tab-content flex-col pt-4">
+            <div class="space-y-2">
+                <div class="flex justify-between p-3 bg-slate-800 rounded-lg border border-slate-700 text-amber-400 font-bold">
+                    <span>1. ALEX</span> <span>593,908</span>
+                </div>
+                <div class="flex justify-between p-3 bg-slate-800/40 rounded-lg text-sm">
+                    <span>2. TOM</span> <span>571,334</span>
+                </div>
+                <div class="flex justify-between p-3 bg-slate-800/40 rounded-lg text-sm text-slate-400">
+                    <span>478. YOU</span> <span class="text-white">4,800</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900 border-t border-slate-800 flex justify-around p-4 z-50">
+        <button onclick="switchTab('tap')" id="btn-tap" class="flex-1 py-2 font-bold active-tab-btn">TAP</button>
+        <button onclick="switchTab('earn')" id="btn-earn" class="flex-1 py-2 font-bold text-slate-500">EARN</button>
+        <button onclick="switchTab('leaderboard')" id="btn-leaderboard" class="flex-1 py-2 font-bold text-slate-500">LEADERBOARD</button>
+    </nav>
+
+    <div id="help-modal" class="hidden fixed inset-0 bg-black/80 z-[100] p-10">
+        <div class="bg-slate-900 w-full h-full rounded-3xl p-6 relative border border-slate-700">
+            <button onclick="toggleModal('help-modal')" class="absolute top-4 right-4 text-2xl">×</button>
+            <h2 class="text-2xl font-bold mb-4">GAME RULE</h2>
+            <p class="text-slate-400">1. Tap to earn coins.<br>2. Energy refills over time.<br>3. Top 10 win MLBB passes weekly.</p>
         </div>
-
-        <div id="leaderboard-page" class="page">
-            <div class="lb-header">
-                <h2>🏆 Weekly Champions</h2>
-                <p style="font-size: 12px; color: #aaa;">Top 10 win MLBB Diamonds. Resets Sunday.</p>
-                <div style="margin-top:10px; font-weight:bold; color:var(--primary);">Reset in: 2d 14h</div>
-            </div>
-            
-            <ul class="lb-list" id="lb-list">
-                </ul>
-
-            <div class="my-rank">
-                <span>Your Rank: #<span id="my-rank-display">--</span></span>
-                <span id="my-score-display-lb">0</span>
-            </div>
-        </div>
-
-        <div id="earn-page" class="page">
-            <h2>📝 Daily Tasks</h2>
-            <div class="task-card">
-                <div>
-                    <div style="font-weight:bold;">Daily Check-in</div>
-                    <div style="font-size:12px; color:#aaa;">+100 Coins</div>
-                </div>
-                <button class="task-btn" onclick="completeTask(this, 100)">Claim</button>
-            </div>
-            <div class="task-card">
-                <div>
-                    <div style="font-weight:bold;">Join Telegram Channel</div>
-                    <div style="font-size:12px; color:#aaa;">+500 Coins</div>
-                </div>
-                <button class="task-btn" onclick="completeTask(this, 500)">Start</button>
-            </div>
-            <div class="task-card">
-                <div>
-                    <div style="font-weight:bold;">Follow on X</div>
-                    <div style="font-size:12px; color:#aaa;">+500 Coins</div>
-                </div>
-                <button class="task-btn" onclick="completeTask(this, 500)">Start</button>
-            </div>
-        </div>
-
     </div>
 
-    <div class="nav-bar">
-        <div class="nav-item active" onclick="switchPage('home')">
-            <span class="nav-icon">🏠</span>
-            Home
-        </div>
-        <div class="nav-item" onclick="switchPage('leaderboard')">
-            <span class="nav-icon">🏆</span>
-            Leaderboard
-        </div>
-        <div class="nav-item" onclick="switchPage('earn')">
-            <span class="nav-icon">💰</span>
-            Earn
+    <div id="id-modal" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-6">
+        <div class="bg-slate-900 w-full rounded-2xl p-6 relative border border-slate-700">
+            <button onclick="toggleModal('id-modal')" class="absolute top-4 right-4 text-2xl">×</button>
+            <h2 class="font-bold mb-4">MLBB ID POPUP</h2>
+            <div class="space-y-3 text-sm">
+                <div class="flex justify-between border-b border-slate-800 pb-2"><span>SERVER ID</span> <span class="text-amber-500">CHANGE</span></div>
+                <div class="pb-2">USER ID</div>
+                <div class="pb-2">IN GAME NAME</div>
+            </div>
         </div>
     </div>
 
     <script>
-        // --- GAME LOGIC ---
+        let coins = 4800;
+        let energy = 390;
 
-        // State Variables (Loaded from Storage if available)
-        let score = parseInt(localStorage.getItem('mlbb_score')) || 0;
-        let energy = parseInt(localStorage.getItem('mlbb_energy')) || 500;
-        const MAX_ENERGY = 500;
-        
-        let multiplier = 1;
-        let abilityActive = false;
-        let abilityTimer = null;
-
-        // UI References
-        const scoreDisplay = document.getElementById('score-display');
-        const scoreProgress = document.getElementById('score-progress');
-        const energyDisplay = document.getElementById('energy-display');
-        const coinBtn = document.getElementById('coin-btn');
-        const refillBtn = document.getElementById('refill-btn');
-        const abilityBtn = document.getElementById('ability-btn');
-        const abilityText = document.getElementById('ability-text');
-        const adOverlay = document.getElementById('ad-overlay');
-        const adTimer = document.getElementById('ad-timer');
-
-        // Initial Render
-        updateUI();
-
-        // 1. Tapping Logic
-        coinBtn.addEventListener('click', (e) => {
-            if (energy > 0) {
-                // Update Logic
-                const points = 1 * multiplier;
-                score += points;
-                energy--;
-                
-                // Save Logic (In real app, debounce this save)
-                localStorage.setItem('mlbb_score', score);
-                localStorage.setItem('mlbb_energy', energy);
-
-                // Visual Effects
+        function handleTap() {
+            if(energy > 0) {
+                coins += 1;
+                energy -= 1;
                 updateUI();
-                showFloatingText(e, points);
-
-            } else {
-                // Shake effect on coin to indicate no energy
-                coinBtn.style.transform = "translateX(5px)";
-                setTimeout(() => coinBtn.style.transform = "none", 100);
+                // Add tiny bounce animation
+                const btn = document.getElementById('coin-btn');
+                btn.style.transform = 'scale(0.95)';
+                setTimeout(() => btn.style.transform = 'scale(1)', 50);
             }
-        });
-
-        function showFloatingText(e, amount) {
-            const el = document.createElement('div');
-            el.className = 'float-text';
-            el.innerText = `+${amount}`;
-            
-            // Randomize position slightly near the click
-            // For simple touch compatibility, we center it on the coin if e is generic
-            const rect = coinBtn.getBoundingClientRect();
-            const x = e.clientX || (rect.left + rect.width/2);
-            const y = e.clientY || (rect.top + rect.height/2);
-
-            el.style.left = `${x}px`;
-            el.style.top = `${y}px`;
-            
-            document.body.appendChild(el);
-            setTimeout(() => el.remove(), 1000);
         }
 
         function updateUI() {
-            scoreDisplay.innerText = score.toLocaleString();
-            energyDisplay.innerText = energy;
+            document.getElementById('coin-display').innerText = `${coins} COIN`;
+            document.getElementById('energy-text').innerText = `${energy}/500`;
+            document.getElementById('energy-bar').style.width = `${(energy/500)*100}%`;
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-tab-btn', 'text-slate-500'));
             
-            // Progress bar (Visual cap at 10,000 for demo)
-            const progress = Math.min((score % 10000) / 100, 100); 
-            scoreProgress.style.width = `${progress}%`;
-
-            // Toggle Refill Button
-            if (energy <= 0) {
-                refillBtn.style.display = "inline-block";
-                energyDisplay.style.color = "var(--danger)";
-            } else {
-                refillBtn.style.display = "none";
-                energyDisplay.style.color = "var(--text)";
-            }
-        }
-
-        // 2. Ad Simulation Logic
-        function simulateAd(callback) {
-            adOverlay.style.display = 'flex';
-            let timeLeft = 3;
-            adTimer.innerText = timeLeft;
+            document.getElementById(tabId + '-tab').classList.add('active');
+            document.getElementById('btn-' + tabId).classList.add('active-tab-btn');
             
-            const interval = setInterval(() => {
-                timeLeft--;
-                adTimer.innerText = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    adOverlay.style.display = 'none';
-                    callback();
-                }
-            }, 1000);
+            // Add grey color back to non-active buttons
+            document.querySelectorAll('nav button:not(.active-tab-btn)').forEach(b => b.classList.add('text-slate-500'));
         }
 
-        // Refill Energy
-        refillBtn.addEventListener('click', () => {
-            simulateAd(() => {
-                energy = MAX_ENERGY;
-                updateUI();
-                alert("Energy Refilled!");
-            });
-        });
-
-        // Double Score Ability
-        abilityBtn.addEventListener('click', () => {
-            if (abilityActive) return;
-
-            simulateAd(() => {
-                activateAbility();
-            });
-        });
-
-        function activateAbility() {
-            abilityActive = true;
-            multiplier = 2;
-            let duration = 30;
-
-            abilityBtn.classList.add('active');
-            abilityText.innerText = `Active: ${duration}s`;
-            
-            // Make coin glow
-            document.querySelector('.coin').style.boxShadow = "0 0 50px var(--accent)";
-
-            abilityTimer = setInterval(() => {
-                duration--;
-                abilityText.innerText = `Active: ${duration}s`;
-
-                if (duration <= 0) {
-                    clearInterval(abilityTimer);
-                    endAbility();
-                }
-            }, 1000);
+        function toggleModal(id) {
+            const m = document.getElementById(id);
+            m.classList.toggle('hidden');
         }
-
-        function endAbility() {
-            abilityActive = false;
-            multiplier = 1;
-            abilityBtn.classList.remove('active');
-            abilityText.innerText = "x2 Multiplier";
-            document.querySelector('.coin').style.boxShadow = "0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.5)";
-        }
-
-        // 3. Navigation
-        function switchPage(pageId) {
-            // Hide all pages
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-
-            // Show selected
-            document.getElementById(`${pageId}-page`).classList.add('active');
-            
-            // Highlight Icon (Simple logic based on index)
-            const map = {'home': 0, 'leaderboard': 1, 'earn': 2};
-            document.querySelectorAll('.nav-item')[map[pageId]].classList.add('active');
-
-            if(pageId === 'leaderboard') {
-                renderLeaderboard();
-            }
-        }
-
-        // 4. Fake Leaderboard Generator
-        function renderLeaderboard() {
-            const list = document.getElementById('lb-list');
-            list.innerHTML = ''; // Clear
-
-            // Generate fake top 10
-            const fakeUsers = ['ProGamer_ML', 'DiamondKing', 'NanaMain', 'SpeedTapper', 'IndoWarrior', 'MythicGlory', 'FannyGod', 'TopGlobal1', 'User992', 'LaylaTank'];
-            
-            let html = '';
-            fakeUsers.forEach((name, index) => {
-                // Random score higher than user
-                const randomScore = score + 5000 + Math.floor(Math.random() * 50000);
-                html += `
-                    <li class="lb-item">
-                        <div style="display:flex; align-items:center;">
-                            <div class="lb-rank">${index + 1}</div>
-                            <div class="lb-user">${name}</div>
-                        </div>
-                        <div class="lb-score">${randomScore.toLocaleString()}</div>
-                    </li>
-                `;
-            });
-            list.innerHTML = html;
-
-            // Update user's personal rank footer
-            document.getElementById('my-rank-display').innerText = Math.floor(Math.random() * 1000) + 11; // Random rank > 10
-            document.getElementById('my-score-display-lb').innerText = score.toLocaleString();
-        }
-
-        // 5. Earn Logic
-        function completeTask(btn, reward) {
-            btn.innerText = "Checking...";
-            setTimeout(() => {
-                btn.innerText = "Claimed";
-                btn.disabled = true;
-                btn.style.opacity = 0.5;
-                score += reward;
-                updateUI();
-                alert(`You earned +${reward} coins!`);
-            }, 1500);
-        }
-
     </script>
 </body>
 </html>
