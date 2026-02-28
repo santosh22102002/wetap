@@ -1,154 +1,291 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tap Coin Game</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            background-color: #0f172a; /* Telegram Dark Theme Depth */
-            color: #ffffff;
-            font-family: 'Inter', sans-serif;
-            user-select: none;
-            overflow: hidden;
-        }
-        .coin-gradient {
-            background: radial-gradient(circle, #fcd34d 0%, #b45309 100%);
-        }
-        .tab-content { display: none; }
-        .tab-content.active { display: flex; }
-        .active-tab-btn { border-bottom: 3px solid #fcd34d; color: #fcd34d; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOBA COIN</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, getDocs } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCO-X24uZxjrJEI1JIwDM3zKFISjJQ28NY",
+  authDomain: "mobacoin.firebaseapp.com",
+  databaseURL: "https://mobacoin-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "mobacoin",
+  storageBucket: "mobacoin.firebasestorage.app",
+  messagingSenderId: "275511190304",
+  appId: "1:275511190304:web:2f255f34cda417cbb5ed45",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const tg = window.Telegram.WebApp;
+tg.expand();
+
+const user = tg.initDataUnsafe.user;
+if(!user) alert("Open inside Telegram");
+
+const userId = user.id.toString();
+const username = user.username || "Player";
+
+let coins = 0;
+let energy = 500;
+let maxEnergy = 500;
+let boostActive = false;
+let boostCooldown = false;
+
+const seasonEnd = getNextSunday();
+
+function getNextSunday(){
+    let now = new Date();
+    let day = now.getDay();
+    let diff = 7 - day;
+    let sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+    sunday.setHours(23,59,59,0);
+    return sunday;
+}
+
+async function initPlayer(){
+    const playerRef = doc(db,"players",userId);
+    const snap = await getDoc(playerRef);
+
+    if(!snap.exists()){
+        await setDoc(playerRef,{
+            username: username,
+            coins: 0,
+            energy: 500,
+            season: 1,
+            lastRefill: Date.now()
+        });
+    }
+
+    onSnapshot(playerRef,(doc)=>{
+        const data = doc.data();
+        coins = data.coins;
+        energy = data.energy;
+        updateUI();
+    });
+}
+
+function updateUI(){
+    document.getElementById("coinDisplay").innerText = coins;
+    document.getElementById("energyDisplay").innerText = energy+"/"+maxEnergy;
+    document.getElementById("energyBar").style.width = (energy/maxEnergy*100)+"%";
+}
+
+async function tap(){
+    if(energy <= 0) return showEnergyPopup();
+
+    let add = boostActive ? 5 : 1;
+
+    const playerRef = doc(db,"players",userId);
+    await updateDoc(playerRef,{
+        coins: coins + add,
+        energy: energy - 1
+    });
+
+    showFloating(add);
+}
+
+function showFloating(val){
+    const float = document.createElement("div");
+    float.className="float";
+    float.innerText="+"+val;
+    document.body.appendChild(float);
+    setTimeout(()=>float.remove(),1000);
+}
+
+function showEnergyPopup(){
+    alert("OUT OF ENERGY\nWait 30 Minutes");
+}
+
+function startBoost(){
+    if(boostCooldown) return;
+
+    boostActive = true;
+    boostCooldown = true;
+
+    setTimeout(()=>{
+        boostActive = false;
+        setTimeout(()=>{
+            boostCooldown = false;
+        },10000);
+    },10000);
+}
+
+function updateCountdown(){
+    const now = new Date();
+    const diff = seasonEnd - now;
+
+    if(diff <= 0){
+        location.reload();
+        return;
+    }
+
+    const d = Math.floor(diff/(1000*60*60*24));
+    const h = Math.floor(diff/(1000*60*60))%24;
+    const m = Math.floor(diff/(1000*60))%60;
+    const s = Math.floor(diff/1000)%60;
+
+    document.getElementById("countdown").innerText =
+        `${d}D ${h}H ${m}M ${s}S`;
+}
+
+setInterval(updateCountdown,1000);
+
+async function loadLeaderboard(){
+    const q = query(collection(db,"players"),
+        orderBy("coins","desc"),
+        limit(10)
+    );
+
+    onSnapshot(q,(snap)=>{
+        const list = document.getElementById("leaderboardList");
+        list.innerHTML="";
+        let rank=1;
+        snap.forEach(doc=>{
+            const data = doc.data();
+            const li=document.createElement("div");
+            li.className="leaderRow";
+            li.innerText=`#${rank} ${data.username} - ${data.coins}`;
+            if(doc.id===userId) li.style.color="gold";
+            list.appendChild(li);
+            rank++;
+        });
+    });
+}
+
+window.tap = tap;
+window.startBoost = startBoost;
+
+initPlayer();
+loadLeaderboard();
+
+</script>
+
+<style>
+
+body{
+  margin:0;
+  background:#2f2f2f;
+  font-family:sans-serif;
+  display:flex;
+  justify-content:center;
+}
+
+.app{
+  width:100%;
+  max-width:360px;
+  height:100vh;
+  overflow:hidden;
+  color:white;
+  text-align:center;
+}
+
+.header{
+  padding:10px;
+}
+
+.button{
+  width:300px;
+  height:300px;
+  border-radius:50%;
+  background:linear-gradient(45deg,#2196f3,#00bcd4);
+  margin:auto;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-size:24px;
+  cursor:pointer;
+  transition:0.1s;
+}
+
+.button:active{
+  transform:scale(0.95);
+}
+
+.energyBar{
+  height:10px;
+  background:#444;
+  margin:10px;
+}
+
+.energyFill{
+  height:100%;
+  background:#4caf50;
+  width:100%;
+}
+
+.float{
+  position:absolute;
+  top:50%;
+  left:50%;
+  animation:floatUp 1s ease-out forwards;
+  font-size:22px;
+}
+
+@keyframes floatUp{
+  from{opacity:1; transform:translate(-50%,0);}
+  to{opacity:0; transform:translate(-50%,-100px);}
+}
+
+.nav{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  display:flex;
+  justify-content:space-around;
+  padding:10px 0;
+  background:#222;
+}
+
+.leaderRow{
+  padding:5px;
+}
+
+</style>
+
 </head>
-<body class="flex flex-col h-screen max-w-md mx-auto border-x border-slate-800">
 
-    <header class="p-4 text-center border-bottom border-slate-800">
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest">Weekly Challenge Ends In: 4D 15H</p>
-        <p class="text-[10px] text-amber-500 mb-2">Secure Top 10 to win MLBB Weekly Diamond Pass</p>
-        <h1 id="coin-display" class="text-4xl font-black text-white">4800 COIN</h1>
-    </header>
+<body>
 
-    <main class="flex-grow flex flex-col px-6 overflow-y-auto pb-24">
-        
-        <section id="tap-tab" class="tab-content active flex-col items-center justify-center space-y-8 mt-10">
-            <div class="flex justify-between w-full px-4">
-                <button onclick="toggleModal('help-modal')" class="bg-slate-800 p-2 rounded-full w-10 h-10 flex items-center justify-center border border-slate-700">?</button>
-                <button onclick="toggleModal('id-modal')" class="bg-slate-800 p-2 rounded-full w-10 h-10 flex items-center justify-center border border-slate-700 text-[10px] font-bold">ID</button>
-            </div>
+<div class="app">
 
-            <div id="coin-btn" onclick="handleTap()" class="w-64 h-64 rounded-full coin-gradient shadow-[0_0_50px_rgba(251,191,36,0.3)] flex items-center justify-center cursor-pointer active:scale-95 transition-transform border-8 border-amber-600/50">
-                <span class="text-3xl font-black text-amber-900 drop-shadow-md">TAP ON COIN</span>
-            </div>
+<div class="header">
+<h2>MOBA COIN</h2>
+<div>WEEKLY CHAMPION IS NOW STARTED</div>
+<div id="countdown"></div>
+<div>TAP, COMPETE & WIN MLBB DIAMOND</div>
+<div>1ST 3X WEEKLY PASS | 2ND 2X | 3RD 1X</div>
+</div>
 
-            <div class="w-full space-y-2">
-                <div class="flex justify-center items-center gap-2 text-sm">
-                    <span>⚡</span> <span id="energy-text">390/500</span>
-                </div>
-                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-700">
-                    <div id="energy-bar" class="bg-amber-400 h-full" style="width: 78%"></div>
-                </div>
-            </div>
+<div id="coinDisplay">0</div>
 
-            <div class="flex gap-4 w-full">
-                <button class="flex-1 bg-slate-800 py-3 rounded-xl text-xs font-bold border border-slate-700">AUTO TAP (ADS)</button>
-                <button class="flex-1 bg-slate-800 py-3 rounded-xl text-xs font-bold border border-slate-700">DOUBLE COIN (ADS)</button>
-            </div>
-        </section>
+<div class="button" onclick="tap()">TAP</div>
 
-        <section id="earn-tab" class="tab-content flex-col space-y-4 pt-6">
-            <div class="earn-card bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
-                <h3 class="text-xs text-slate-400 mb-2 uppercase">Daily Log In</h3>
-                <div class="h-16 bg-slate-700/50 rounded-lg flex items-center justify-center">Claim +500 Coins</div>
-            </div>
-            <div class="earn-card bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
-                <h3 class="text-xs text-slate-400 mb-2 uppercase">Referral Task</h3>
-                <div class="h-16 bg-slate-700/50 rounded-lg flex items-center justify-center">Invite 5 Friends</div>
-            </div>
-            <div class="earn-card bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
-                <h3 class="text-xs text-slate-400 mb-2 uppercase">Special Task</h3>
-                <div class="h-16 bg-slate-700/50 rounded-lg flex items-center justify-center">Follow Socials</div>
-            </div>
-        </section>
+<div>
+<div id="energyDisplay"></div>
+<div class="energyBar">
+<div class="energyFill" id="energyBar"></div>
+</div>
+<button onclick="startBoost()">5X COIN</button>
+</div>
 
-        <section id="leaderboard-tab" class="tab-content flex-col pt-4">
-            <div class="space-y-2">
-                <div class="flex justify-between p-3 bg-slate-800 rounded-lg border border-slate-700 text-amber-400 font-bold">
-                    <span>1. ALEX</span> <span>593,908</span>
-                </div>
-                <div class="flex justify-between p-3 bg-slate-800/40 rounded-lg text-sm">
-                    <span>2. TOM</span> <span>571,334</span>
-                </div>
-                <div class="flex justify-between p-3 bg-slate-800/40 rounded-lg text-sm text-slate-400">
-                    <span>478. YOU</span> <span class="text-white">4,800</span>
-                </div>
-            </div>
-        </section>
-    </main>
+<div id="leaderboardList"></div>
 
-    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900 border-t border-slate-800 flex justify-around p-4 z-50">
-        <button onclick="switchTab('tap')" id="btn-tap" class="flex-1 py-2 font-bold active-tab-btn">TAP</button>
-        <button onclick="switchTab('earn')" id="btn-earn" class="flex-1 py-2 font-bold text-slate-500">EARN</button>
-        <button onclick="switchTab('leaderboard')" id="btn-leaderboard" class="flex-1 py-2 font-bold text-slate-500">LEADERBOARD</button>
-    </nav>
+<div class="nav">
+<div>HOME</div>
+<div>LEADERBOARD</div>
+</div>
 
-    <div id="help-modal" class="hidden fixed inset-0 bg-black/80 z-[100] p-10">
-        <div class="bg-slate-900 w-full h-full rounded-3xl p-6 relative border border-slate-700">
-            <button onclick="toggleModal('help-modal')" class="absolute top-4 right-4 text-2xl">×</button>
-            <h2 class="text-2xl font-bold mb-4">GAME RULE</h2>
-            <p class="text-slate-400">1. Tap to earn coins.<br>2. Energy refills over time.<br>3. Top 10 win MLBB passes weekly.</p>
-        </div>
-    </div>
+</div>
 
-    <div id="id-modal" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-6">
-        <div class="bg-slate-900 w-full rounded-2xl p-6 relative border border-slate-700">
-            <button onclick="toggleModal('id-modal')" class="absolute top-4 right-4 text-2xl">×</button>
-            <h2 class="font-bold mb-4">MLBB ID POPUP</h2>
-            <div class="space-y-3 text-sm">
-                <div class="flex justify-between border-b border-slate-800 pb-2"><span>SERVER ID</span> <span class="text-amber-500">CHANGE</span></div>
-                <div class="pb-2">USER ID</div>
-                <div class="pb-2">IN GAME NAME</div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let coins = 4800;
-        let energy = 390;
-
-        function handleTap() {
-            if(energy > 0) {
-                coins += 1;
-                energy -= 1;
-                updateUI();
-                // Add tiny bounce animation
-                const btn = document.getElementById('coin-btn');
-                btn.style.transform = 'scale(0.95)';
-                setTimeout(() => btn.style.transform = 'scale(1)', 50);
-            }
-        }
-
-        function updateUI() {
-            document.getElementById('coin-display').innerText = `${coins} COIN`;
-            document.getElementById('energy-text').innerText = `${energy}/500`;
-            document.getElementById('energy-bar').style.width = `${(energy/500)*100}%`;
-        }
-
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-tab-btn', 'text-slate-500'));
-            
-            document.getElementById(tabId + '-tab').classList.add('active');
-            document.getElementById('btn-' + tabId).classList.add('active-tab-btn');
-            
-            // Add grey color back to non-active buttons
-            document.querySelectorAll('nav button:not(.active-tab-btn)').forEach(b => b.classList.add('text-slate-500'));
-        }
-
-        function toggleModal(id) {
-            const m = document.getElementById(id);
-            m.classList.toggle('hidden');
-        }
-    </script>
 </body>
 </html>
