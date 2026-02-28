@@ -29,10 +29,22 @@ const db = getFirestore(app);
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-const user = tg.initDataUnsafe.user;
-if(!user) alert("Open inside Telegram");
+const tg = window.Telegram?.WebApp;
 
-const userId = user.id.toString();
+let userId;
+let username;
+
+if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    tg.expand();
+    const user = tg.initDataUnsafe.user;
+    userId = user.id.toString();
+    username = user.username || "Player";
+} else {
+    // FOR LOCAL TESTING ONLY
+    console.log("Not inside Telegram. Using test user.");
+    userId = "test_user_123";
+    username = "TestPlayer";
+}
 const username = user.username || "Player";
 
 let coins = 0;
