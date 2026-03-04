@@ -133,17 +133,27 @@ LOADING
 ////////////////////////////
 
 const tg = window.Telegram.WebApp;
+
 tg.expand();
 
+let uid;
+let username;
+
+if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+
 const telegramUser = tg.initDataUnsafe.user;
-  if (!telegramUser) {
-  alert("OPEN THIS APP INSIDE TELEGRAM");
+
+uid = String(telegramUser.id);
+username = telegramUser.username || "user";
+
+} else {
+
+console.log("Not opened inside Telegram");
+
+uid = "test_user";
+username = "test";
+
 }
-
-const uid = String(telegramUser.id);
-
-const username = telegramUser.username || "user";
-
 ////////////////////////////
 //// FIREBASE CONFIG
 ////////////////////////////
