@@ -1,376 +1,277 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Daily Lottery</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Daily Lottery</title>
     
-    * {
-      border: none !important;
-      outline: none;
-      box-sizing: border-box;
-      font-family: 'Roboto', sans-serif;
-      font-weight: bold;
-      text-transform: uppercase;
-    }
-
-    body {
-      background-color: #2C2C2C;
-      color: #FFFFFF;
-      margin: 0;
-      padding: 0 0 80px 0;
-      overflow-x: hidden;
-    }
-
-    .accent-text { color: #F8FF13; }
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    .header-card {
-      padding: 20px;
-      text-align: center;
-      background-color: #2C2C2C;
-    }
-    
-    .lottery-title { font-size: 24px; margin-bottom: 10px; }
-    .timer { font-size: 20px; margin-bottom: 5px; }
-    .jackpot { font-size: 28px; }
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
-    .ticket-counter {
-      padding: 10px 20px;
-      font-size: 16px;
-    }
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-    .ticket-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-      padding: 10px 20px;
-      max-height: 40vh;
-      overflow-y: auto;
-    }
+        // ==========================================
+        // CONFIGURATION (Replace with yours)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
+            authDomain: "upwebapp-19b3a.firebaseapp.com",
+            projectId: "upwebapp-19b3a",
+            storageBucket: "upwebapp-19b3a.firebasestorage.app",
+            messagingSenderId: "746730266775",
+            appId: "1:746730266775:web:ae3ef6b81d83cd9427c9d2"
+        };
 
-    .ticket {
-      background-color: #3C3C3C;
-      padding: 15px 5px;
-      text-align: center;
-      font-size: 14px;
-    }
+        const ADSGRAM_BLOCK_ID = "YOUR_ADSGRAM_BLOCK_ID"; // Get this from Adsgram.ai
 
-    .ticket.winner {
-      background-color: #F8FF13;
-      color: #2C2C2C;
-    }
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-    details {
-      margin: 20px;
-      background-color: #3C3C3C;
-    }
-    summary {
-      padding: 15px;
-      cursor: pointer;
-      color: #F8FF13;
-      list-style: none;
-    }
-    summary::-webkit-details-marker { display: none; }
-    .rules-content {
-      padding: 15px;
-      font-size: 12px;
-      line-height: 1.5;
-    }
+        // ==========================================
+        // TELEGRAM & USER SETUP
+        // ==========================================
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
-    .bottom-button {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 70px;
-      background-color: #F8FF13;
-      color: #2C2C2C;
-      font-size: 18px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .bottom-button:disabled {
-      background-color: #555555;
-      color: #888888;
-      pointer-events: none;
-    }
-  </style>
+        const userId = tg.initDataUnsafe?.user?.id?.toString() || "test_user_123";
+        const maxTickets = 50;
+        const cooldownMs = 10 * 60 * 1000; // 10 minutes
+
+        let userTickets = [];
+        let lastClaimTime = 0;
+        let todayDateStr = new Date().toISOString().split('T')[0];
+
+        // UI Elements
+        const statusEl = document.getElementById('lottery-status');
+        const timerEl = document.getElementById('lottery-timer');
+        const tableBody = document.getElementById('ticket-table-body');
+        const claimBtn = document.getElementById('claim-btn');
+        const cooldownMsg = document.getElementById('cooldown-msg');
+
+        // Initialize Adsgram Controller
+        const AdController = window.Adsgram ? window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID }) : null;
+
+        // ==========================================
+        // SCHEDULE & TIMER LOGIC
+        // ==========================================
+        function updateSchedule() {
+            const now = new Date();
+            const hour = now.getHours();
+            let state = "";
+            let targetTime = new Date(now);
+
+            if (hour >= 17 || hour < 12) {
+                state = "OPEN";
+                statusEl.innerText = "Lottery is OPEN";
+                if (hour >= 17) targetTime.setDate(targetTime.getDate() + 1);
+                targetTime.setHours(12, 0, 0, 0);
+            } else if (hour >= 12 && hour < 14) {
+                state = "CLOSED";
+                statusEl.innerText = "Lottery CLOSED. Calculating results...";
+                targetTime.setHours(14, 0, 0, 0);
+                claimBtn.disabled = true;
+            } else {
+                state = "RESULTS";
+                statusEl.innerText = "Results are OUT! Waiting for next round...";
+                targetTime.setHours(17, 0, 0, 0);
+                claimBtn.disabled = true;
+            }
+
+            const diff = targetTime - now;
+            const h = Math.floor(diff / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            timerEl.innerText = `Time left: ${h}h ${m}m ${s}s`;
+
+            if (state === "OPEN") checkCooldown();
+        }
+        setInterval(updateSchedule, 1000);
+
+        // ==========================================
+        // DATABASE & DATA HANDLING
+        // ==========================================
+        async function loadUserData() {
+            const docRef = doc(db, "users", userId);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.date === todayDateStr) {
+                    userTickets = data.tickets || [];
+                    lastClaimTime = data.lastClaimTime || 0;
+                } else {
+                    userTickets = [];
+                    lastClaimTime = 0;
+                    await setDoc(docRef, { date: todayDateStr, tickets: [], lastClaimTime: 0 });
+                }
+            } else {
+                await setDoc(docRef, { date: todayDateStr, tickets: [], lastClaimTime: 0 });
+            }
+            renderTable();
+            checkCooldown();
+        }
+
+        function renderTable() {
+            tableBody.innerHTML = "";
+            userTickets.forEach((ticket, index) => {
+                const row = `<tr><td>${index + 1}</td><td>${ticket}</td></tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        function checkCooldown() {
+            if (userTickets.length >= maxTickets) {
+                claimBtn.disabled = true;
+                claimBtn.innerText = "Max Tickets Reached";
+                cooldownMsg.innerText = "You have claimed 50/50 tickets today.";
+                return;
+            }
+
+            const now = Date.now();
+            const timePassed = now - lastClaimTime;
+
+            if (timePassed < cooldownMs) {
+                claimBtn.disabled = true;
+                const timeLeft = Math.ceil((cooldownMs - timePassed) / 1000 / 60);
+                claimBtn.innerText = "Cooldown Active";
+                cooldownMsg.innerText = `Wait ${timeLeft} mins for next ticket.`;
+            } else {
+                claimBtn.disabled = false;
+                claimBtn.innerText = "Watch Ad to Claim Ticket";
+                cooldownMsg.innerText = `${userTickets.length}/${maxTickets} tickets claimed today.`;
+            }
+        }
+
+        // ==========================================
+        // AD & CLAIM LOGIC (ADSGRAM)
+        // ==========================================
+        window.claimTicket = async function() {
+            if (!AdController) {
+                tg.showAlert("Ad network failed to load. Please refresh.");
+                return;
+            }
+
+            claimBtn.disabled = true;
+            claimBtn.innerText = "Loading Ad...";
+
+            // Trigger the Adsgram Ad
+            AdController.show().then(async (result) => {
+                // Promise resolved: User watched the whole ad
+                const newTicket = Math.floor(100000 + Math.random() * 900000).toString(); 
+                userTickets.push(newTicket);
+                lastClaimTime = Date.now();
+
+                // Save to Firestore
+                const docRef = doc(db, "users", userId);
+                await updateDoc(docRef, {
+                    tickets: userTickets,
+                    lastClaimTime: lastClaimTime
+                });
+
+                tg.showAlert(`Ticket ${newTicket} claimed successfully!`);
+                renderTable();
+                checkCooldown();
+
+            }).catch((result) => {
+                // Promise rejected: User skipped the ad or no ad was available
+                if (result.error) {
+                    tg.showAlert("Failed to load an ad. Please try again later.");
+                } else {
+                    tg.showAlert("You closed the ad early. No ticket awarded.");
+                }
+                checkCooldown(); // Reset button to normal state
+            });
+        };
+
+        // Initialize App
+        loadUserData();
+    </script>
+
+    <style>
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #ffffff);
+            --text-color: var(--tg-theme-text-color, #000000);
+            --btn-color: var(--tg-theme-button-color, #2481cc);
+            --btn-text: var(--tg-theme-button-text-color, #ffffff);
+            --hint-color: var(--tg-theme-hint-color, #999999);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        h1, h2, h3, p { margin: 5px 0; text-align: left; }
+        .title { font-size: 24px; font-weight: bold; }
+        .timer { font-size: 16px; color: #ff3b30; font-weight: bold; }
+        .prize { font-size: 20px; color: #34c759; font-weight: bold; }
+        .spacer { height: 30px; }
+
+        .table-container {
+            width: 100%;
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--hint-color);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 10px; border-bottom: 1px solid var(--hint-color); }
+        th { background-color: rgba(0,0,0,0.05); position: sticky; top: 0; }
+
+        .claim-btn {
+            background-color: var(--btn-color);
+            color: var(--btn-text);
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        .claim-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .cooldown-info { font-size: 12px; color: var(--hint-color); text-align: center; margin-top: 10px; }
+    </style>
 </head>
 <body>
 
-  <div class="header-card">
-    <div class="lottery-title accent-text">Daily Jackpot</div>
-    <div id="status-display" class="timer accent-text">LOADING...</div>
-    <div class="jackpot accent-text">PRIZE: <span id="prize-amount">0</span></div>
-  </div>
-
-  <div class="ticket-counter">YOUR TICKETS: <span id="user-tickets">0</span> / 138</div>
-  <div class="ticket-grid" id="ticket-grid"></div>
-
-  <details>
-    <summary>HOW TO PLAY</summary>
-    <div class="rules-content">
-      - 1 TICKET EVERY 10 MINUTES<br>
-      - MAX 138 TICKETS PER DAY<br>
-      - CLAIM PHASE: 00:00 - 23:00<br>
-      - DRAW TIME: 23:01<br>
-      - WINNER NOTIFIED VIA BOT DM
+    <h1 class="title" id="lottery-status">Daily Lottery</h1>
+    <p class="timer" id="lottery-timer">Loading timer...</p>
+    <p class="prize">Prize Pool: $1,000</p>
+    
+    <div class="spacer"></div>
+    
+    <h3>Your Ticket Numbers</h3>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Ticket Number</th>
+                </tr>
+            </thead>
+            <tbody id="ticket-table-body">
+                </tbody>
+        </table>
     </div>
-  </details>
 
-  <button id="action-btn" class="bottom-button" disabled>LOADING...</button>
+    <button id="claim-btn" class="claim-btn" onclick="claimTicket()" disabled>Loading...</button>
+    <div class="cooldown-info" id="cooldown-msg">Connecting to server...</div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-    
-    // Safely get Telegram User ID. If not in Telegram, fallback to "test_user"
-    const tgUser = tg.initDataUnsafe?.user;
-    const userId = tgUser ? tgUser.id.toString() : "test_user_" + Math.floor(Math.random() * 1000);
-
-    // ✅ ADD YOUR FIREBASE PUBLIC CONFIG HERE
-    const firebaseConfig = {
-      apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
-  authDomain: "upwebapp-19b3a.firebaseapp.com",
-  databaseURL: "https://upwebapp-19b3a-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "upwebapp-19b3a",
-  storageBucket: "upwebapp-19b3a.firebasestorage.app",
-  messagingSenderId: "746730266775",
-  appId: "1:746730266775:web:ae3ef6b81d83cd9427c9d2"
-      // YOUR CONFIG HERE
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-
-    const statusDisplay = document.getElementById('status-display');
-    const prizeAmount = document.getElementById('prize-amount');
-    const userTickets = document.getElementById('user-tickets');
-    const ticketGrid = document.getElementById('ticket-grid');
-    const actionBtn = document.getElementById('action-btn');
-
-    // Use UTC date to ensure all users are on the same daily cycle
-    const nowUtc = new Date();
-    const currentDateStr = nowUtc.toISOString().split('T')[0]; 
-    
-    let lotteryState = { status: 'claim', winnerTicket: null, prizeAmount: 0 };
-    let userState = { ticketsToday: 0, nextClaimTime: 0 };
-    let timerInterval = null;
-
-    const lotteryRef = ref(db, `lottery/${currentDateStr}`);
-    const userRef = ref(db, `users/${userId}`);
-
-    // Listen to Lottery DB
-    onValue(lotteryRef, (snapshot) => {
-      if (snapshot.exists()) {
-        lotteryState = snapshot.val();
-      } else {
-        // FIX: If DB is empty, set default state so app doesn't freeze
-        lotteryState = { status: 'claim', winnerTicket: null, prizeAmount: 0 };
-      }
-      prizeAmount.innerText = lotteryState.prizeAmount || 0;
-      updateUI();
-    });
-
-    // Listen to User DB
-    onValue(userRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        // Check if the user's last claim was from yesterday
-        if (data.lastClaimDate === currentDateStr) {
-          userState = data;
-        } else {
-          userState = { ticketsToday: 0, nextClaimTime: 0 }; 
-        }
-      } else {
-        // FIX: New user! Set defaults so button activates
-        userState = { ticketsToday: 0, nextClaimTime: 0 };
-      }
-      renderTickets();
-      updateUI();
-    });
-
-    function updateUI() {
-      clearInterval(timerInterval);
-      const now = Date.now();
-      const currentHour = new Date().getUTCHours(); // Use UTC to match backend
-      
-      if (currentHour >= 23 && lotteryState.status === 'claim') {
-        statusDisplay.innerText = "DRAWING IN PROGRESS";
-        setButtonState("DRAWING IN PROGRESS", true);
-        return;
-      }
-
-      if (lotteryState.status === 'completed') {
-        statusDisplay.innerText = `DRAW COMPLETED. WINNER TICKET: #${lotteryState.winnerTicket || 'NONE'}`;
-        highlightWinner();
-        startNextRoundTimer();
-        return;
-      }
-
-      if (lotteryState.status === 'claim') {
-        if (userState.ticketsToday >= 138) {
-          statusDisplay.innerText = "MAX TICKETS REACHED";
-          setButtonState("DAILY LIMIT REACHED", true);
-        } else if (now < userState.nextClaimTime) {
-          startCooldownTimer(userState.nextClaimTime);
-        } else {
-          startCountdownTo23();
-          setButtonState("CLAIM TICKET (WATCH AD)", false);
-        }
-      }
-    }
-
-    function renderTickets() {
-      ticketGrid.innerHTML = '';
-      userTickets.innerText = userState.ticketsToday;
-      for (let i = 1; i <= userState.ticketsToday; i++) {
-        const div = document.createElement('div');
-        div.className = 'ticket';
-        div.innerText = `#${i}`;
-        div.id = `ticket-${i}`;
-        ticketGrid.appendChild(div);
-      }
-      highlightWinner();
-    }
-
-    function highlightWinner() {
-      if (lotteryState.status === 'completed' && lotteryState.winnerUID === userId) {
-        const winningEl = document.getElementById(`ticket-${lotteryState.winnerTicket}`);
-        if (winningEl) winningEl.classList.add('winner');
-      }
-    }
-
-    function setButtonState(text, disabled) {
-      actionBtn.innerText = text;
-      actionBtn.disabled = disabled;
-    }
-
-    function formatTime(ms) {
-      const totalSec = Math.floor(ms / 1000);
-      const h = Math.floor(totalSec / 3600).toString().padStart(2, '0');
-      const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, '0');
-      const s = (totalSec % 60).toString().padStart(2, '0');
-      return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
-    }
-
-    function startCooldownTimer(targetTime) {
-      timerInterval = setInterval(() => {
-        const remain = targetTime - Date.now();
-        if (remain <= 0) {
-          updateUI();
-        } else {
-          setButtonState(`NEXT TICKET IN ${formatTime(remain)}`, true);
-          statusDisplay.innerText = "WAITING FOR COOLDOWN";
-        }
-      }, 1000);
-    }
-
-    function startCountdownTo23() {
-      timerInterval = setInterval(() => {
-        const now = new Date();
-        const target = new Date();
-        target.setUTCHours(23, 0, 0, 0); // Target 23:00 UTC
-        let remain = target.getTime() - now.getTime();
-        
-        // If it's already past 23:00 UTC, target tomorrow
-        if (remain < 0) {
-            target.setDate(target.getDate() + 1);
-            remain = target.getTime() - now.getTime();
-        }
-
-        if (remain <= 0) {
-          updateUI();
-        } else {
-          statusDisplay.innerText = `CLOSES IN ${formatTime(remain)}`;
-        }
-      }, 1000);
-    }
-
-    function startNextRoundTimer() {
-      timerInterval = setInterval(() => {
-        const now = new Date();
-        const target = new Date();
-        target.setUTCDate(now.getUTCDate() + 1);
-        target.setUTCHours(0, 0, 0, 0); // Target 00:00 UTC next day
-        const remain = target.getTime() - now.getTime();
-        setButtonState(`NEXT ROUND STARTS IN ${formatTime(remain)}`, true);
-      }, 1000);
-    }
-
-    actionBtn.addEventListener('click', () => {
-      // Temporarily disable button to prevent double clicks
-      setButtonState("PROCESSING...", true); 
-      
-      const now = Date.now();
-      const nextTime = now + (10 * 60 * 1000); 
-
-      runTransaction(userRef, (currentUser) => {
-        if (!currentUser || currentUser.lastClaimDate !== currentDateStr) {
-          return { ticketsToday: 1, nextClaimTime: nextTime, lastClaimDate: currentDateStr };
-        }
-        if (currentUser.ticketsToday < 138 && now >= currentUser.nextClaimTime) {
-          currentUser.ticketsToday += 1;
-          currentUser.nextClaimTime = nextTime;
-          return currentUser;
-        }
-        return currentUser; // Abort if constraints fail
-      }).catch((error) => {
-        console.error("Database Write Failed:", error);
-        alert("Could not connect to database. Check your Firebase Rules.");
-        updateUI(); // Reset button
-      });
-    });
-  </script>
-      timerInterval = setInterval(() => {
-        const now = new Date();
-        const target = new Date();
-        target.setHours(23, 0, 0, 0);
-        const remain = target.getTime() - now.getTime();
-        
-        if (remain <= 0) {
-          updateUI();
-        } else {
-          statusDisplay.innerText = `CLOSES IN ${formatTime(remain)}`;
-        }
-      }, 1000);
-    }
-
-    function startNextRoundTimer() {
-      timerInterval = setInterval(() => {
-        const now = new Date();
-        const target = new Date();
-        target.setDate(now.getDate() + 1);
-        target.setHours(0, 0, 0, 0);
-        const remain = target.getTime() - now.getTime();
-        setButtonState(`NEXT ROUND STARTS IN ${formatTime(remain)}`, true);
-      }, 1000);
-    }
-
-    actionBtn.addEventListener('click', () => {
-      const now = Date.now();
-      const nextTime = now + (10 * 60 * 1000); 
-
-      runTransaction(userRef, (currentUser) => {
-        if (!currentUser || currentUser.lastClaimDate !== currentDateStr) {
-          return { ticketsToday: 1, nextClaimTime: nextTime, lastClaimDate: currentDateStr };
-        }
-        if (currentUser.ticketsToday < 138 && now >= currentUser.nextClaimTime) {
-          currentUser.ticketsToday += 1;
-          currentUser.nextClaimTime = nextTime;
-          return currentUser;
-        }
-        return; 
-      });
-    });
-  </script>
 </body>
 </html>
