@@ -1,426 +1,183 @@
 <!DOCTYPE html>
 <html>
 <head>
-
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<title>LOTTERY</title>
-
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet">
+<title>1UP Daily Lottery</title>
 
 <style>
-
 body{
-background:#2C2C2C;
-font-family:'Roboto',sans-serif;
-color:#ffffff;
-margin:0;
-padding:20px;
-text-transform:uppercase;
+  background:#111;
+  color:#fff;
+  font-family:Arial;
+  text-align:center;
 }
 
-.header{
-color:#F8FF13;
-font-size:22px;
-margin-bottom:20px;
+.container{
+  max-width:380px;
+  margin:auto;
+  padding:10px;
 }
 
-.timer{
-color:#F8FF13;
-margin-top:8px;
+.card{
+  background:#1a1a1a;
+  padding:15px;
+  border-radius:10px;
+  margin-bottom:10px;
 }
 
-.jackpot{
-color:#F8FF13;
-margin-top:5px;
-}
-
-.ticketCounter{
-margin-top:20px;
+button{
+  width:100%;
+  padding:15px;
+  font-size:18px;
+  background:#ffd400;
+  border:none;
+  border-radius:10px;
 }
 
 .grid{
-margin-top:20px;
-display:grid;
-grid-template-columns:repeat(4,1fr);
-gap:8px;
-max-height:300px;
-overflow-y:auto;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:6px;
 }
 
 .ticket{
-padding:6px 0;
+  background:#222;
+  padding:8px;
+  border-radius:6px;
+  font-size:14px;
 }
-
-.rules{
-margin-top:30px;
-}
-
-.rulesContent{
-display:none;
-margin-top:10px;
-font-size:12px;
-line-height:18px;
-}
-
-.bottom{
-position:fixed;
-bottom:0;
-left:0;
-right:0;
-background:#F8FF13;
-color:#2C2C2C;
-text-align:center;
-padding:16px;
-font-weight:bold;
-}
-
 </style>
 </head>
 
 <body>
 
-<div class="header">
-LOTTERY
-<div class="timer" id="timer"></div>
-<div class="jackpot" id="jackpot">JACKPOT ₹0</div>
+<div class="container">
+
+<div class="card">
+<h2>1UP DAILY LOTTERY</h2>
+<div id="timer">Loading...</div>
+<div id="jackpot">₹0</div>
 </div>
 
-<div class="ticketCounter" id="ticketCounter">
-YOUR TICKETS: 0 / 138
+<div class="card">
+<div>Your Tickets: <span id="count">0</span>/138</div>
+<div id="tickets" class="grid"></div>
 </div>
 
-<div class="grid" id="ticketGrid"></div>
-
-<div class="rules">
-
-<div onclick="toggleRules()">RULES</div>
-
-<div class="rulesContent" id="rulesContent">
-
-1 TICKET EVERY 10 MINUTES  
-MAXIMUM 138 TICKETS PER DAY  
-
-CLAIM PHASE  
-00:00 - 23:00  
-
-DRAW TIME  
-23:01  
-
-WINNER SELECTED RANDOMLY  
-BASED ON NUMBER OF TICKETS  
-
-WINNER RECEIVES TELEGRAM MESSAGE  
-
+<div class="card">
+<button id="claimBtn">CLAIM TICKET</button>
 </div>
 
 </div>
 
-<div class="bottom" id="claimButton">
-LOADING
-</div>
+<script type="module">
 
-<script>
+import { initializeApp } 
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 
-////////////////////////////
-//// TELEGRAM INIT
-////////////////////////////
+import { getDatabase, ref, get, set, update, onValue, increment } 
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-const tg = window.Telegram.WebApp;
-
-tg.expand();
-
-let uid;
-let username;
-
-if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-
-const telegramUser = tg.initDataUnsafe.user;
-
-uid = String(telegramUser.id);
-username = telegramUser.username || "user";
-
-} else {
-
-console.log("Not opened inside Telegram");
-
-uid = "test_user";
-username = "test";
-
-}
-////////////////////////////
-//// FIREBASE CONFIG
-////////////////////////////
+import { getAuth, signInAnonymously } 
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
-authDomain: "upwebapp-19b3a.firebaseapp.com",
-projectId: "upwebapp-19b3a"
+ apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
+  authDomain: "upwebapp-19b3a.firebaseapp.com",
+  databaseURL: "https://upwebapp-19b3a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "upwebapp-19b3a"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
 
-////////////////////////////
-//// DATE HELPERS
-////////////////////////////
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
 
-function getToday(){
+let uid = null;
 
-return new Date().toISOString().split("T")[0];
+signInAnonymously(auth).then(async(res)=>{
 
-}
+uid = res.user.uid;
+console.log("User:",uid);
 
-////////////////////////////
-//// DOM
-////////////////////////////
+createUser();
 
-const timer = document.getElementById("timer");
-const jackpot = document.getElementById("jackpot");
-const ticketGrid = document.getElementById("ticketGrid");
-const ticketCounter = document.getElementById("ticketCounter");
-const claimButton = document.getElementById("claimButton");
+});
 
-////////////////////////////
-//// RULE TOGGLE
-////////////////////////////
+async function createUser(){
 
-function toggleRules(){
+const userRef = ref(db,"users/"+uid);
 
-const r = document.getElementById("rulesContent");
+const snap = await get(userRef);
 
-r.style.display = r.style.display==="block" ? "none":"block";
+if(!snap.exists()){
 
-}
-
-////////////////////////////
-//// RANDOM TICKET
-////////////////////////////
-
-function generateTicket(){
-
-return Math.floor(Math.random()*900000)+100000;
-
-}
-
-////////////////////////////
-//// APP STATE
-////////////////////////////
-
-let userData=null;
-let lotteryData=null;
-
-////////////////////////////
-//// REALTIME LISTENER USER
-////////////////////////////
-
-async function initUser(){
-
-const ref = db.collection("users").doc(uid);
-
-const doc = await ref.get();
-
-if(!doc.exists){
-
-await ref.set({
-
+await set(userRef,{
+username:"user",
 ticketsToday:0,
-tickets:[],
 nextClaimTime:0,
-lastClaimDate:getToday(),
-telegramID:telegramUser.id,
-username:username
+lastClaimDate:""
+});
+
+}
+
+loadUser();
+
+}
+
+function loadUser(){
+
+const userRef = ref(db,"users/"+uid);
+
+onValue(userRef,(snap)=>{
+
+const data = snap.val();
+
+document.getElementById("count").innerText =
+data.ticketsToday;
+
+renderTickets(data.ticketsToday);
 
 });
 
 }
 
-ref.onSnapshot(snapshot=>{
+function renderTickets(n){
 
-userData = snapshot.data();
+const grid = document.getElementById("tickets");
 
-updateUserUI();
+grid.innerHTML="";
 
-});
+for(let i=0;i<n;i++){
 
-}
+const d = document.createElement("div");
+d.className="ticket";
+d.innerText="T"+(i+1);
 
-initUser();
-
-////////////////////////////
-//// REALTIME LOTTERY
-////////////////////////////
-
-db.collection("lottery")
-.doc(getToday())
-.onSnapshot(doc=>{
-
-if(!doc.exists) return;
-
-lotteryData=doc.data();
-
-updateLotteryUI();
-
-});
-
-////////////////////////////
-//// UPDATE USER UI
-////////////////////////////
-
-function updateUserUI(){
-
-ticketCounter.innerText=
-"YOUR TICKETS: "+userData.ticketsToday+" / 138";
-
-appendTickets();
-
-updateButton();
+grid.appendChild(d);
 
 }
 
-////////////////////////////
-//// APPEND TICKETS
-////////////////////////////
-
-let rendered=0;
-
-function appendTickets(){
-
-const tickets=userData.tickets;
-
-for(let i=rendered;i<tickets.length;i++){
-
-const div=document.createElement("div");
-
-div.className="ticket";
-
-div.innerText=tickets[i];
-
-ticketGrid.appendChild(div);
-
 }
 
-rendered=tickets.length;
+document.getElementById("claimBtn")
+.onclick = async ()=>{
 
-}
+const userRef = ref(db,"users/"+uid);
 
-////////////////////////////
-//// UPDATE LOTTERY UI
-////////////////////////////
+const snap = await get(userRef);
 
-function updateLotteryUI(){
+const user = snap.val();
 
-jackpot.innerText="JACKPOT ₹"+lotteryData.prizeAmount;
+if(user.ticketsToday >= 138){
 
-}
-
-////////////////////////////
-//// TIMER LOOP
-////////////////////////////
-
-setInterval(()=>{
-
-const now=new Date();
-
-const end=new Date();
-end.setHours(23,0,0,0);
-
-const diff=end-now;
-
-if(diff>0){
-
-const h=Math.floor(diff/3600000);
-const m=Math.floor(diff%3600000/60000);
-const s=Math.floor(diff%60000/1000);
-
-timer.innerText="ENDS IN "+h+":"+m+":"+s;
-
-}else{
-
-timer.innerText="DRAWING IN PROGRESS";
-
-}
-
-updateButton();
-
-},1000);
-
-////////////////////////////
-//// BUTTON STATE
-////////////////////////////
-
-function updateButton(){
-
-if(!userData||!lotteryData) return;
-
-const now=Date.now();
-
-if(lotteryData.status!=="claim"){
-
-claimButton.innerText="DRAWING IN PROGRESS";
+alert("Limit reached");
 
 return;
 
 }
 
-if(userData.ticketsToday>=138){
-
-claimButton.innerText="DAILY LIMIT REACHED";
-
-return;
-
-}
-
-if(now<userData.nextClaimTime){
-
-const diff=userData.nextClaimTime-now;
-
-const m=Math.floor(diff/60000);
-const s=Math.floor(diff%60000/1000);
-
-claimButton.innerText="NEXT TICKET IN "+m+":"+s;
-
-return;
-
-}
-
-claimButton.innerText="CLAIM TICKET (WATCH AD)";
-
-}
-
-////////////////////////////
-//// CLAIM TICKET
-////////////////////////////
-
-claimButton.onclick=async()=>{
-
-if(!userData||!lotteryData) return;
-
-const now=Date.now();
-
-if(now<userData.nextClaimTime) return;
-
-if(userData.ticketsToday>=138) return;
-
-if(lotteryData.status!=="claim") return;
-
-const ticket=generateTicket();
-
-await db.collection("users").doc(uid).update({
-
-ticketsToday:userData.ticketsToday+1,
-
-tickets:firebase.firestore.FieldValue.arrayUnion(ticket),
-
-nextClaimTime:Date.now()+600000,
-
-lastClaimDate:getToday()
-
+await update(userRef,{
+ticketsToday:user.ticketsToday+1
 });
 
 };
