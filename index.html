@@ -161,9 +161,12 @@
         let countdownInterval;
 
         // Ensure user is authenticated (Assume custom token auth handled prior, using anonymous for structure)
-        firebase.auth().signInAnonymously().then(() => {
-            initApp();
-        });
+        // Ensure user is authenticated WITH error catching
+firebase.auth().signInAnonymously().then(() => {
+    initApp();
+}).catch((error) => {
+    tg.showAlert("AUTH ERROR: " + error.message);
+});
 
         function initApp() {
             const todayStr = new Date().toISOString().split('T')[0];
