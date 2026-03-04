@@ -131,7 +131,10 @@
 
     const tg = window.Telegram.WebApp;
     tg.expand();
-    const user = tg.initDataUnsafe?.user || { id: "test_user" }; 
+    
+    // Safely get Telegram User ID. If not in Telegram, fallback to "test_user"
+    const tgUser = tg.initDataUnsafe?.user;
+    const userId = tgUser ? tgUser.id.toString() : "test_user_" + Math.floor(Math.random() * 1000);
 
     // ✅ ADD YOUR FIREBASE PUBLIC CONFIG HERE
     const firebaseConfig = {
@@ -142,6 +145,7 @@
   storageBucket: "upwebapp-19b3a.firebasestorage.app",
   messagingSenderId: "746730266775",
   appId: "1:746730266775:web:ae3ef6b81d83cd9427c9d2"
+      // YOUR CONFIG HERE
     };
 
     const app = initializeApp(firebaseConfig);
@@ -153,39 +157,51 @@
     const ticketGrid = document.getElementById('ticket-grid');
     const actionBtn = document.getElementById('action-btn');
 
-    let currentDateStr = new Date().toISOString().split('T')[0]; 
-    let lotteryState = { status: 'claim', winnerTicket: null };
+    // Use UTC date to ensure all users are on the same daily cycle
+    const nowUtc = new Date();
+    const currentDateStr = nowUtc.toISOString().split('T')[0]; 
+    
+    let lotteryState = { status: 'claim', winnerTicket: null, prizeAmount: 0 };
     let userState = { ticketsToday: 0, nextClaimTime: 0 };
     let timerInterval = null;
 
     const lotteryRef = ref(db, `lottery/${currentDateStr}`);
-    const userRef = ref(db, `users/${user.id}`);
+    const userRef = ref(db, `users/${userId}`);
 
+    // Listen to Lottery DB
     onValue(lotteryRef, (snapshot) => {
       if (snapshot.exists()) {
         lotteryState = snapshot.val();
-        prizeAmount.innerText = lotteryState.prizeAmount || 0;
-        updateUI();
+      } else {
+        // FIX: If DB is empty, set default state so app doesn't freeze
+        lotteryState = { status: 'claim', winnerTicket: null, prizeAmount: 0 };
       }
+      prizeAmount.innerText = lotteryState.prizeAmount || 0;
+      updateUI();
     });
 
+    // Listen to User DB
     onValue(userRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
+        // Check if the user's last claim was from yesterday
         if (data.lastClaimDate === currentDateStr) {
           userState = data;
         } else {
           userState = { ticketsToday: 0, nextClaimTime: 0 }; 
         }
-        renderTickets();
-        updateUI();
+      } else {
+        // FIX: New user! Set defaults so button activates
+        userState = { ticketsToday: 0, nextClaimTime: 0 };
       }
+      renderTickets();
+      updateUI();
     });
 
     function updateUI() {
       clearInterval(timerInterval);
       const now = Date.now();
-      const currentHour = new Date().getHours();
+      const currentHour = new Date().getUTCHours(); // Use UTC to match backend
       
       if (currentHour >= 23 && lotteryState.status === 'claim') {
         statusDisplay.innerText = "DRAWING IN PROGRESS";
@@ -227,7 +243,7 @@
     }
 
     function highlightWinner() {
-      if (lotteryState.status === 'completed' && lotteryState.winnerUID === user.id) {
+      if (lotteryState.status === 'completed' && lotteryState.winnerUID === userId) {
         const winningEl = document.getElementById(`ticket-${lotteryState.winnerTicket}`);
         if (winningEl) winningEl.classList.add('winner');
       }
@@ -259,6 +275,61 @@
     }
 
     function startCountdownTo23() {
+      timerInterval = setInterval(() => {
+        const now = new Date();
+        const target = new Date();
+        target.setUTCHours(23, 0, 0, 0); // Target 23:00 UTC
+        let remain = target.getTime() - now.getTime();
+        
+        // If it's already past 23:00 UTC, target tomorrow
+        if (remain < 0) {
+            target.setDate(target.getDate() + 1);
+            remain = target.getTime() - now.getTime();
+        }
+
+        if (remain <= 0) {
+          updateUI();
+        } else {
+          statusDisplay.innerText = `CLOSES IN ${formatTime(remain)}`;
+        }
+      }, 1000);
+    }
+
+    function startNextRoundTimer() {
+      timerInterval = setInterval(() => {
+        const now = new Date();
+        const target = new Date();
+        target.setUTCDate(now.getUTCDate() + 1);
+        target.setUTCHours(0, 0, 0, 0); // Target 00:00 UTC next day
+        const remain = target.getTime() - now.getTime();
+        setButtonState(`NEXT ROUND STARTS IN ${formatTime(remain)}`, true);
+      }, 1000);
+    }
+
+    actionBtn.addEventListener('click', () => {
+      // Temporarily disable button to prevent double clicks
+      setButtonState("PROCESSING...", true); 
+      
+      const now = Date.now();
+      const nextTime = now + (10 * 60 * 1000); 
+
+      runTransaction(userRef, (currentUser) => {
+        if (!currentUser || currentUser.lastClaimDate !== currentDateStr) {
+          return { ticketsToday: 1, nextClaimTime: nextTime, lastClaimDate: currentDateStr };
+        }
+        if (currentUser.ticketsToday < 138 && now >= currentUser.nextClaimTime) {
+          currentUser.ticketsToday += 1;
+          currentUser.nextClaimTime = nextTime;
+          return currentUser;
+        }
+        return currentUser; // Abort if constraints fail
+      }).catch((error) => {
+        console.error("Database Write Failed:", error);
+        alert("Could not connect to database. Check your Firebase Rules.");
+        updateUI(); // Reset button
+      });
+    });
+  </script>
       timerInterval = setInterval(() => {
         const now = new Date();
         const target = new Date();
