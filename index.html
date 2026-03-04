@@ -3,420 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MOBA COIN</title>
-    
+    <title>Daily Lottery</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+        // REPLACE WITH YOUR FIREBASE CONFIG
+        const firebaseConfig = { apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8", projectId: "upwebapp-19b3a" };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Telegram Setup
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        const userId = tg.initDataUnsafe?.user?.id?.toString() || "DEV_USER";
+        
+        // State
+        let todayStr = new Date().toISOString().split("T")[0];
+        let state = { tickets: 0, max: 138, nextClaim: 0, status: "claim", prize: 0, winner: null };
+        let timerInterval;
+
+        // UI Elements
+        const elJackpot = document.getElementById("jackpot-amount");
+        const elTimer = document.getElementById("timer-text");
+        const elTicketCount = document.getElementById("ticket-count");
+        const elGrid = document.getElementById("ticket-grid");
+        const btnClaim = document.getElementById("btn-claim");
+        
+        // Listeners
+        const listenData = () => {
+            // 1. Lottery Doc Listener
+            onSnapshot(doc(db, "lottery", todayStr), (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data();
+                    state.status = data.status;
+                    state.prize = data.prizeAmount;
+                    state.winner = data.winnerUID;
+                    elJackpot.innerText = `$${state.prize}`;
+                    updateUI();
+                }
+            });
+
+            // 2. User Doc Listener
+            onSnapshot(doc(db, "users", userId), (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data();
+                    if (data.lastClaimDate !== todayStr) {
+                        state.tickets = 0;
+                        state.nextClaim = 0;
+                        elGrid.innerHTML = ""; // Reset for new day
+                    } else {
+                        // Append new tickets instead of full re-render
+                        while(elGrid.children.length < data.ticketsToday) {
+                            const tDiv = document.createElement("div");
+                            tDiv.className = "ticket-box";
+                            tDiv.innerText = elGrid.children.length + 1;
+                            elGrid.appendChild(tDiv);
+                        }
+                        state.tickets = data.ticketsToday;
+                        state.nextClaim = data.nextClaimTime ? data.nextClaimTime.toMillis() : 0;
+                    }
+                }
+                elTicketCount.innerText = `YOUR TICKETS: ${state.tickets} / ${state.max}`;
+                updateUI();
+            });
+        };
+
+        const updateUI = () => {
+            clearInterval(timerInterval);
+            
+            if (state.status === "claim") {
+                timerInterval = setInterval(() => {
+                    const now = new Date();
+                    const drawTime = new Date();
+                    drawTime.setHours(23, 0, 0, 0);
+                    
+                    if (now >= drawTime) {
+                        elTimer.innerText = "DRAWING IN PROGRESS";
+                        btnClaim.innerText = "DRAWING IN PROGRESS";
+                        btnClaim.disabled = true;
+                        clearInterval(timerInterval);
+                    } else {
+                        // Header draw countdown
+                        const diff = drawTime - now;
+                        elTimer.innerText = new Date(diff).toISOString().substr(11, 8);
+                        
+                        // Button Logic
+                        if (state.tickets >= state.max) {
+                            btnClaim.innerText = "DAILY LIMIT REACHED";
+                            btnClaim.disabled = true;
+                        } else if (now.getTime() < state.nextClaim) {
+                            const coolDiff = state.nextClaim - now.getTime();
+                            btnClaim.innerText = `NEXT TICKET IN ${new Date(coolDiff).toISOString().substr(14, 5)}`;
+                            btnClaim.disabled = true;
+                        } else {
+                            btnClaim.innerText = "CLAIM TICKET (WATCH AD)";
+                            btnClaim.disabled = false;
+                        }
+                    }
+                }, 1000);
+            } else if (state.status === "closed") {
+                elTimer.innerText = "DRAWING IN PROGRESS";
+                btnClaim.innerText = "DRAWING IN PROGRESS";
+                btnClaim.disabled = true;
+            } else if (state.status === "completed") {
+                elTimer.innerText = `DRAW COMPLETED. WINNER: ${state.winner === userId ? "YOU!" : "ANNOUNCED SOON"}`;
+                
+                // Highlight winning ticket visually
+                if (state.winner === userId) {
+                     Array.from(elGrid.children).forEach(el => el.classList.add('winner'));
+                }
+
+                timerInterval = setInterval(() => {
+                    const now = new Date();
+                    const nextMidnight = new Date();
+                    nextMidnight.setHours(24, 0, 0, 0);
+                    const diff = nextMidnight - now;
+                    btnClaim.innerText = `NEXT ROUND STARTS IN ${new Date(diff).toISOString().substr(11, 8)}`;
+                }, 1000);
+                btnClaim.disabled = true;
+            }
+        };
+
+        // Claim Function
+        btnClaim.addEventListener("click", async () => {
+            if (btnClaim.disabled) return;
+            btnClaim.disabled = true;
+            btnClaim.innerText = "PROCESSING...";
+
+            // (Ad Logic goes here)
+            
+            const userRef = doc(db, "users", userId);
+            try {
+                if (state.tickets === 0) {
+                    await setDoc(userRef, {
+                        ticketsToday: 1,
+                        lastClaimDate: todayStr,
+                        nextClaimTime: new Date(Date.now() + 10 * 60000), // ServerTimestamp ideally handled via callable func if possible, doing local + rules validation here
+                        username: tg.initDataUnsafe?.user?.username || "Unknown"
+                    });
+                } else {
+                    await updateDoc(userRef, {
+                        ticketsToday: increment(1),
+                        nextClaimTime: new Date(Date.now() + 10 * 60000)
+                    });
+                }
+                // Update prize pot
+                await updateDoc(doc(db, "lottery", todayStr), { prizeAmount: increment(10) }); // Example +10 per ticket
+            } catch (err) {
+                console.error("Claim failed", err);
+                tg.showAlert("Claim failed. Please try again.");
+                updateUI();
+            }
+        });
+
+        // Rules Toggle
+        document.getElementById("rules-toggle").addEventListener("click", () => {
+            const content = document.getElementById("rules-content");
+            content.style.display = content.style.display === "none" ? "block" : "none";
+        });
+
+        // Init
+        // Note: Implement Custom Token Auth via your backend here: signInWithCustomToken(auth, token).then(listenData);
+        listenData(); 
+    </script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
+        * { box-sizing: border-box; font-family: 'Roboto', sans-serif; text-transform: uppercase; font-weight: bold; margin: 0; padding: 0; }
+        body { background-color: #2C2C2C; color: #FFFFFF; display: flex; flex-direction: column; height: 100vh; padding-bottom: 80px; }
+        .header-card { background-color: #3D3D3D; padding: 20px; text-align: center; border-bottom: 2px solid #F8FF13; }
+        .text-accent { color: #F8FF13; }
+        .header-title { font-size: 24px; margin-bottom: 10px; }
+        .timer, .jackpot { font-size: 20px; }
+        
+        .counter-section { text-align: center; padding: 15px; font-size: 18px; }
+        
+        .grid-container { flex: 1; overflow-y: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); max-width: 100%; gap: 10px; align-content: start; justify-content: center; }
+        @media (min-width: 350px) { .grid-container { grid-template-columns: repeat(4, 1fr); } }
+        
+        .ticket-box { background-color: #444; border: 1px solid #F8FF13; border-radius: 8px; padding: 15px 0; text-align: center; font-size: 16px; color: #F8FF13; }
+        .ticket-box.winner { background-color: #F8FF13; color: #2C2C2C; animation: blink 1s infinite alternate; }
+        
+        .rules-section { padding: 15px; background: #222; border-top: 1px solid #444; }
+        .rules-toggle { width: 100%; text-align: left; background: none; border: none; color: #F8FF13; font-size: 14px; cursor: pointer; padding: 5px 0; }
+        .rules-content { font-size: 12px; color: #BBB; display: none; margin-top: 10px; line-height: 1.5; }
 
-        body {
-            background-color: #2f2f2f;
-            color: #ffffff;
-            width: 100vw;
-            height: 100vh;
-            max-width: 360px;
-            margin: 0 auto;
-            overflow: hidden; /* No scrolling */
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Header Sections */
-        header {
-            text-align: center;
-            padding: 10px 5px;
-            background: linear-gradient(180deg, #1a1a1a 0%, #2f2f2f 100%);
-        }
-
-        .season-alert { font-size: 12px; font-weight: bold; color: #f39c12; }
-        .countdown-timer { font-size: 24px; font-weight: 900; margin: 5px 0; letter-spacing: 1px; }
-        .encourage-text { font-size: 10px; opacity: 0.8; margin-bottom: 5px; }
-        .rewards { font-size: 11px; color: #00ffcc; font-weight: bold; }
-
-        /* Pages */
-        .page {
-            flex: 1;
-            display: none;
-            flex-direction: column;
-            padding: 10px;
-            overflow: hidden;
-        }
-        .page.active { display: flex; }
-
-        /* User Stats */
-        .user-stats { text-align: center; margin-bottom: 20px; }
-        .rank-display { font-size: 14px; color: #aaa; margin: 5px 0; }
-        .coin-display { font-size: 32px; font-weight: bold; color: #ffd700; text-shadow: 0 2px 10px rgba(255, 215, 0, 0.3); }
-
-        /* Clicker Area */
-        .clicker-area {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-        }
-
-        .tap-btn {
-            width: 250px;
-            height: 250px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #00d2ff 0%, #3a7bd5 100%);
-            border: none;
-            box-shadow: 0 0 30px rgba(0, 210, 255, 0.5), inset 0 0 20px rgba(255,255,255,0.2);
-            cursor: pointer;
-            transition: transform 0.1s ease;
-        }
-        .tap-btn:active { transform: scale(0.95); }
-
-        /* Floating Text */
-        .floating-text {
-            position: absolute;
-            color: white;
-            font-size: 24px;
-            font-weight: bold;
-            pointer-events: none;
-            animation: floatUp 1s ease-out forwards;
-            z-index: 10;
-        }
-        .floating-text.boost { color: #00ffcc; text-shadow: 0 0 10px #00ffcc; font-size: 30px;}
-
-        @keyframes floatUp {
-            0% { transform: translateY(0) scale(1); opacity: 1; }
-            100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
-        }
-
-        /* System Row */
-        .system-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
-        .energy-system { width: 60%; }
-        .energy-text { font-size: 12px; margin-bottom: 5px; }
-        .energy-bar { height: 10px; background: #1a1a1a; border-radius: 5px; overflow: hidden; }
-        .energy-fill { height: 100%; background: #ff4757; width: 100%; transition: width 0.2s; }
-        .boost-btn { padding: 10px 15px; background: #f39c12; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
-        .boost-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
-
-        /* Leaderboard */
-        .leaderboard-list { flex: 1; overflow-y: auto; padding-bottom: 60px; }
-        .lb-item { display: flex; justify-content: space-between; padding: 15px 10px; background: #3a3a3a; margin-bottom: 5px; border-radius: 8px; }
-        .lb-item.me { background: linear-gradient(90deg, #3a7bd5 0%, #2f2f2f 100%); border-left: 3px solid #00d2ff; }
-
-        /* Bottom Nav */
-        .bottom-nav { height: 60px; display: flex; background: #1a1a1a; }
-        .bottom-nav button { flex: 1; background: none; border: none; color: #888; font-weight: bold; font-size: 14px; cursor: pointer; }
-        .bottom-nav button.active { color: #00d2ff; }
-
-        /* Popups */
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
-        .overlay.hidden { display: none; }
-        .popup { background: #2f2f2f; padding: 20px; border-radius: 10px; width: 80%; text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        .popup h3 { margin-bottom: 10px; color: #f39c12; }
-        .popup p { font-size: 14px; margin-bottom: 20px; }
-        .popup-actions { display: flex; gap: 10px; justify-content: center; }
-        .action-btn { padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
-        .action-btn.watch { background: #00d2ff; color: #1a1a1a; }
-        .action-btn.cancel { background: #555; color: white; }
+        .fixed-bottom { position: fixed; bottom: 0; left: 0; width: 100%; background: #2C2C2C; padding: 15px; border-top: 2px solid #444; }
+        .btn-main { width: 100%; padding: 15px; background-color: #F8FF13; color: #2C2C2C; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: opacity 0.2s; }
+        .btn-main:disabled { opacity: 0.6; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="season-alert">WEEKLY CHAMPION IS NOW STARTED</div>
-        <div class="countdown-timer" id="season-countdown">0D 00H 00M 00S</div>
-        <div class="encourage-text">TAP, COMPETE & WIN MLBB DIAMONDS</div>
-        <div class="rewards">
-            <span>1ST: 3X PASS</span> | 
-            <span>2ND: 2X PASS</span> | 
-            <span>3RD: 1X PASS</span>
-        </div>
-    </header>
+    <div class="header-card">
+        <div class="header-title text-accent">DAILY LOTTERY</div>
+        <div class="timer text-accent" id="timer-text">00:00:00</div>
+        <div class="jackpot text-accent" id="jackpot-amount">$0</div>
+    </div>
 
-    <main id="page-main" class="page active">
-        <div class="user-stats">
-            <h2 id="username-display">@player</h2>
-            <div class="rank-display">Rank: <span id="user-rank">#--</span></div>
-            <div class="coin-display">
-                <span id="coin-balance">0</span> COINS
-            </div>
-        </div>
+    <div class="counter-section" id="ticket-count">YOUR TICKETS: 0 / 138</div>
 
-        <div class="clicker-area">
-            <button id="tap-btn" class="tap-btn"></button>
-        </div>
+    <div class="grid-container" id="ticket-grid"></div>
 
-        <div class="system-row">
-            <div class="energy-system">
-                <div class="energy-text"><span id="energy-current">500</span> / 500</div>
-                <div class="energy-bar"><div class="energy-fill" id="energy-fill"></div></div>
-            </div>
-            <button id="boost-btn" class="boost-btn">5X COIN</button>
-        </div>
-    </main>
-
-    <main id="page-leaderboard" class="page">
-        <h2>SEASON LEADERBOARD</h2>
-        <div id="leaderboard-list" class="leaderboard-list">
-            </div>
-    </main>
-
-    <nav class="bottom-nav">
-        <button id="nav-main" class="active">TAP</button>
-        <button id="nav-leaderboard">LEADERBOARD</button>
-    </nav>
-
-    <div id="popup-overlay" class="overlay hidden">
-        <div class="popup">
-            <h3 id="popup-title">TITLE</h3>
-            <p id="popup-desc">DESCRIPTION</p>
-            <div class="popup-actions">
-                <button id="popup-watch" class="action-btn watch">WATCH</button>
-                <button id="popup-cancel" class="action-btn cancel">CANCEL</button>
-            </div>
+    <div class="rules-section">
+        <button class="rules-toggle" id="rules-toggle">📖 RULES & INFO (TAP TO EXPAND)</button>
+        <div class="rules-content" id="rules-content">
+            • 1 TICKET EVERY 10 MINS.<br>
+            • MAX 138 TICKETS/DAY.<br>
+            • CLAIM ENDS AT 23:00 UTC.<br>
+            • DRAW AT 23:01 UTC.<br>
+            • WINNER NOTIFIED VIA BOT DM.<br>
+            • BACK-TO-BACK WINNING PROHIBITED.
         </div>
     </div>
 
-    <script>
-        // 1. TELEGRAM SETUP
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-        const user = tg.initDataUnsafe?.user || { id: "test_123", username: "GuestUser" };
+    <div class="fixed-bottom">
+        <button class="btn-main" id="btn-claim" disabled>LOADING...</button>
+    </div>
 
-        // 2. FIREBASE SETUP (REPLACE WITH YOUR CONFIG)
-        const firebaseConfig = {
-            apiKey: "AIzaSyCO-X24uZxjrJEI1JIwDM3zKFISjJQ28NY",
-          authDomain: "mobacoin.firebaseapp.com",
-  databaseURL: "https://mobacoin-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "mobacoin",
-  storageBucket: "mobacoin.firebasestorage.app",
-  messagingSenderId: "275511190304",
-  appId: "1:275511190304:web:2f255f34cda417cbb5ed45",
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        // 3. GAME STATE
-        let coins = 0;
-        let energy = 500;
-        const maxEnergy = 500;
-        let isBoosted = false;
-        let boostCooldown = false;
-        let energyRefillTime = null;
-        let currentAction = null; 
-
-        // DOM Elements
-        const elCoins = document.getElementById('coin-balance');
-        const elEnergy = document.getElementById('energy-current');
-        const elEnergyFill = document.getElementById('energy-fill');
-        const elUsername = document.getElementById('username-display');
-        const elRank = document.getElementById('user-rank');
-        const btnTap = document.getElementById('tap-btn');
-        const btnBoost = document.getElementById('boost-btn');
-        const overlay = document.getElementById('popup-overlay');
-        const btnNavMain = document.getElementById('nav-main');
-        const btnNavLb = document.getElementById('nav-leaderboard');
-
-        elUsername.innerText = `@${user.username}`;
-
-        // 4. DATABASE SYNC
-        const userRef = db.collection('users').doc(user.id.toString());
-
-        userRef.get().then(doc => {
-            if (doc.exists) {
-                let data = doc.data();
-                coins = data.coins || 0;
-                energy = data.energy !== undefined ? data.energy : maxEnergy;
-                energyRefillTime = data.energyRefillTime || null;
-                
-                if (energyRefillTime && Date.now() > energyRefillTime) {
-                    energy = maxEnergy;
-                    energyRefillTime = null;
-                }
-            } else {
-                userRef.set({ username: user.username, coins: 0, energy: maxEnergy });
-            }
-            updateUI();
-        });
-
-        function saveToDB() {
-            userRef.update({ coins: coins, energy: energy, energyRefillTime: energyRefillTime });
-        }
-
-        // 5. CORE MECHANICS (Pointerdown handles both touch and mouse click)
-        btnTap.addEventListener('pointerdown', (e) => {
-            if (energy <= 0) {
-                showPopup('OUT OF ENERGY', 'WATCH ad to get +500 ENERGY', 'energy');
-                return;
-            }
-
-            const tapValue = isBoosted ? 5 : 1;
-            coins += tapValue;
-            energy -= 1;
-            
-            if(energy === 0 && !energyRefillTime) {
-                energyRefillTime = Date.now() + (30 * 60 * 1000); 
-            }
-
-            updateUI();
-            saveToDB(); 
-
-            // Floating Animation Math
-            const rect = btnTap.getBoundingClientRect();
-            // Fallback for testing on desktop where e.touches might be undefined
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            
-            createFloatingText(clientX, clientY, `+${tapValue}`, isBoosted);
-        });
-
-        function createFloatingText(x, y, text, boosted) {
-            const el = document.createElement('div');
-            el.className = `floating-text ${boosted ? 'boost' : ''}`;
-            el.innerText = text;
-            el.style.left = `${x - 10}px`;
-            el.style.top = `${y - 20}px`;
-            document.querySelector('.clicker-area').appendChild(el);
-            setTimeout(() => el.remove(), 1000);
-        }
-
-        function updateUI() {
-            elCoins.innerText = coins;
-            elEnergy.innerText = energy;
-            elEnergyFill.style.width = `${(energy / maxEnergy) * 100}%`;
-        }
-
-        // 6. BOOST SYSTEM
-        btnBoost.addEventListener('click', () => {
-            if(boostCooldown) return;
-            showPopup('BOOST COIN UPTO 5X', 'WATCH ad to activate for 10 seconds', 'boost');
-        });
-
-        function activateBoost() {
-            isBoosted = true;
-            btnBoost.disabled = true;
-            let time = 10;
-            
-            let timer = setInterval(() => {
-                time--;
-                btnBoost.innerText = `BOOSTED: ${time}s`;
-                if(time <= 0) {
-                    clearInterval(timer);
-                    isBoosted = false;
-                    startBoostCooldown();
-                }
-            }, 1000);
-        }
-
-        function startBoostCooldown() {
-            boostCooldown = true;
-            let cooldown = 10;
-            let timer = setInterval(() => {
-                cooldown--;
-                btnBoost.innerText = `COOLDOWN: ${cooldown}s`;
-                if(cooldown <= 0) {
-                    clearInterval(timer);
-                    boostCooldown = false;
-                    btnBoost.disabled = false;
-                    btnBoost.innerText = '5X COIN';
-                }
-            }, 1000);
-        }
-
-        // 7. POPUP & ADS
-        function showPopup(title, desc, actionType) {
-            document.getElementById('popup-title').innerText = title;
-            document.getElementById('popup-desc').innerText = desc;
-            currentAction = actionType;
-            overlay.classList.remove('hidden');
-        }
-
-        document.getElementById('popup-cancel').addEventListener('click', () => overlay.classList.add('hidden'));
-
-        document.getElementById('popup-watch').addEventListener('click', () => {
-            document.getElementById('popup-watch').innerText = "WATCHING...";
-            setTimeout(() => {
-                if (currentAction === 'energy') {
-                    energy = maxEnergy;
-                    energyRefillTime = null;
-                    updateUI();
-                    saveToDB();
-                } else if (currentAction === 'boost') {
-                    activateBoost();
-                }
-                document.getElementById('popup-watch').innerText = "WATCH";
-                overlay.classList.add('hidden');
-            }, 2000); 
-        });
-
-        // 8. NAVIGATION & LEADERBOARD
-        btnNavMain.addEventListener('click', () => switchPage('page-main', btnNavMain));
-        btnNavLb.addEventListener('click', () => {
-            switchPage('page-leaderboard', btnNavLb);
-            loadLeaderboard();
-        });
-
-        function switchPage(pageId, navBtn) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
-            document.getElementById(pageId).classList.add('active');
-            navBtn.classList.add('active');
-        }
-
-        function loadLeaderboard() {
-            const list = document.getElementById('leaderboard-list');
-            list.innerHTML = 'Loading...';
-            
-            db.collection('users').orderBy('coins', 'desc').limit(50).onSnapshot(snapshot => {
-                list.innerHTML = '';
-                let rankCounter = 1;
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const isMe = doc.id === user.id.toString();
-                    if(isMe) elRank.innerText = `#${rankCounter}`;
-                    
-                    list.innerHTML += `
-                        <div class="lb-item ${isMe ? 'me' : ''}">
-                            <div><strong>#${rankCounter}</strong> @${data.username}</div>
-                            <div>${data.coins} 🪙</div>
-                        </div>
-                    `;
-                    rankCounter++;
-                });
-            });
-        }
-
-        // 9. SEASON TIMER
-        function updateSeasonTimer() {
-            const now = new Date();
-            const nextSunday = new Date();
-            nextSunday.setDate(now.getDate() + (7 - now.getDay()) % 7);
-            nextSunday.setHours(23, 59, 59, 999);
-            
-            if (now.getDay() === 0 && now.getHours() === 23 && now.getMinutes() >= 59) {
-                coins = 0; saveToDB(); updateUI();
-            }
-
-            const diff = nextSunday - now;
-            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-            const m = Math.floor((diff / 1000 / 60) % 60);
-            const s = Math.floor((diff / 1000) % 60);
-
-            document.getElementById('season-countdown').innerText = 
-                `${d}D ${h.toString().padStart(2,'0')}H ${m.toString().padStart(2,'0')}M ${s.toString().padStart(2,'0')}S`;
-        }
-        setInterval(updateSeasonTimer, 1000);
-        updateSeasonTimer();
-    </script>
 </body>
 </html>
