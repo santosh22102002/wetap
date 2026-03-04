@@ -162,28 +162,53 @@
 
         // Ensure user is authenticated (Assume custom token auth handled prior, using anonymous for structure)
         // Ensure user is authenticated WITH error catching
-firebase.auth().signInAnonymously().then(() => {
-    initApp();
-}).catch((error) => {
-    tg.showAlert("AUTH ERROR: " + error.message);
-});
+let firebaseUid = "";
+
+        // 1. Authenticate and save the Firebase UID
+        firebase.auth().signInAnonymously().then((userCredential) => {
+            firebaseUid = userCredential.user.uid;
+            initApp();
+        }).catch((error) => {
+            tg.showAlert("AUTH ERROR: " + error.message);
+        });
 
         function initApp() {
             const todayStr = new Date().toISOString().split('T')[0];
             
-            // 1. Listen to Global Lottery Doc
+            // Listen to Global Lottery Doc
             db.collection('lottery').doc(todayStr).onSnapshot(doc => {
                 if(doc.exists) {
                     const data = doc.data();
                     currentStatus = data.status;
                     document.getElementById('jackpot').innerText = `PRIZE: ${data.prizeAmount || 0}`;
                     
-                    if(currentStatus === "completed" && data.winnerUID === user.id) {
+                    // Note: We will now check against telegram ID for the winner
+                    if(currentStatus === "completed" && data.winnerUID === user.id.toString()) {
                         highlightWinningTicket(data.winnerTicket);
                     }
                 }
                 updateUI();
             });
+
+            // Listen to User Doc using the secure FIREBASE UID
+            db.collection('users').doc(firebaseUid).onSnapshot(doc => {
+                if(doc.exists) {
+                    const data = doc.data();
+                    if(data.lastClaimDate === todayStr) {
+                        ticketsToday = data.ticketsToday || 0;
+                        nextClaimTime = data.nextClaimTime ? data.nextClaimTime.toDate().getTime() : 0;
+                        renderTickets(ticketsToday);
+                    } else {
+                        ticketsToday = 0;
+                        nextClaimTime = 0;
+                        renderTickets(0);
+                    }
+                }
+                updateUI();
+            });
+
+            countdownInterval = setInterval(updateUI, 1000);
+        }
 
             // 2. Listen to User Doc
             db.collection('users').doc(user.id.toString()).onSnapshot(doc => {
@@ -277,14 +302,17 @@ firebase.auth().signInAnonymously().then(() => {
         }
 
         async function handleClaim() {
-            // Watch Ad integration goes here
             const btn = document.getElementById('fixed-bottom-btn');
             btn.disabled = true;
             btn.innerText = "CLAIMING...";
 
             try {
                 const claimFn = firebase.functions().httpsCallable('claimTicket');
-                await claimFn({ username: user.username });
+                // Send both Username AND Telegram ID to the backend
+                await claimFn({ 
+                    username: user.username || "Unknown",
+                    tgId: user.id.toString() 
+                });
             } catch(e) {
                 tg.showAlert(e.message.toUpperCase());
                 updateUI();
