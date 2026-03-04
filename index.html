@@ -1,188 +1,370 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>1UP Daily Lottery</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Daily Lottery</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
-<style>
-body{
-  background:#111;
-  color:#fff;
-  font-family:Arial;
-  text-align:center;
-}
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap');
 
-.container{
-  max-width:380px;
-  margin:auto;
-  padding:10px;
-}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', sans-serif;
+            text-transform: uppercase;
+            border: none;
+            outline: none;
+        }
 
-.card{
-  background:#1a1a1a;
-  padding:15px;
-  border-radius:10px;
-  margin-bottom:10px;
-}
+        body {
+            background-color: #2C2C2C;
+            color: #FFFFFF;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-button{
-  width:100%;
-  padding:15px;
-  font-size:18px;
-  background:#ffd400;
-  border:none;
-  border-radius:10px;
-}
+        .container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            padding-bottom: 80px; /* Space for fixed bottom button */
+        }
 
-.grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:6px;
-}
+        .header-card {
+            background-color: #2C2C2C;
+            text-align: center;
+            margin-bottom: 20px;
+        }
 
-.ticket{
-  background:#222;
-  padding:8px;
-  border-radius:6px;
-  font-size:14px;
-}
-</style>
+        .highlight-text {
+            color: #F8FF13;
+        }
+
+        .lottery-title {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .prize-amount {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .timer-display {
+            font-size: 18px;
+        }
+
+        .ticket-counter {
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .ticket-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .ticket-item {
+            background-color: #3D3D3D;
+            padding: 10px 5px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .ticket-item.winning-ticket {
+            background-color: #F8FF13;
+            color: #2C2C2C;
+        }
+
+        .rules-section {
+            background-color: #3D3D3D;
+            padding: 15px;
+        }
+
+        .rules-title {
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .rules-content {
+            display: none;
+            margin-top: 10px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .rules-content.active {
+            display: block;
+        }
+
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            background-color: #2C2C2C;
+        }
+
+        .action-button {
+            width: 100%;
+            background-color: #F8FF13;
+            color: #2C2C2C;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .action-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
 </head>
-
 <body>
 
-<div class="container">
+    <div class="container">
+        <div class="header-card">
+            <div class="lottery-title highlight-text">DAILY LOTTERY</div>
+            <div class="prize-amount highlight-text" id="jackpotAmount">0 TON</div>
+            <div class="timer-display highlight-text" id="statusDisplay">LOADING...</div>
+            <div class="highlight-text" id="winnerDisplay" style="display: none; margin-top: 10px; font-size: 14px;"></div>
+        </div>
 
-<div class="card">
-<h2>1UP DAILY LOTTERY</h2>
-<div id="timer">Loading...</div>
-<div id="jackpot">₹0</div>
-</div>
+        <div class="ticket-counter">
+            YOUR TICKETS: <span id="userTicketCount">0</span> / 138
+        </div>
 
-<div class="card">
-<div>Your Tickets: <span id="count">0</span>/138</div>
-<div id="tickets" class="grid"></div>
-</div>
+        <div class="ticket-grid" id="ticketGrid">
+            </div>
 
-<div class="card">
-<button id="claimBtn">CLAIM TICKET</button>
-</div>
+        <div class="rules-section">
+            <div class="rules-title" onclick="toggleRules()">
+                <span>RULES</span>
+                <span id="rulesIcon">▼</span>
+            </div>
+            <div class="rules-content" id="rulesContent">
+                1. 1 TICKET EVERY 10 MINS.<br>
+                2. MAX 138 TICKETS PER DAY.<br>
+                3. CLAIM ENDS AT 23:00 UTC.<br>
+                4. DRAW AT 23:01 UTC.<br>
+                5. WINNER GETS BOT DM.<br>
+                6. PRIZE POOL GROWS WITH ENTRIES.
+            </div>
+        </div>
+    </div>
 
-</div>
+    <div class="bottom-bar">
+        <button class="action-button" id="mainButton" disabled>LOADING...</button>
+    </div>
 
-<script type="module">
-
-import { initializeApp } 
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-
-import { getDatabase, ref, get, set, update, onValue, increment } 
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-import { getAuth, signInAnonymously } 
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-const firebaseConfig = {
- apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
+    <script>
+        // --- CONFIGURATION ---
+        // Initialize Firebase (Replace with actual config)
+        const firebaseConfig = {
+            apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
   authDomain: "upwebapp-19b3a.firebaseapp.com",
   databaseURL: "https://upwebapp-19b3a-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "upwebapp-19b3a"
-};
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        // Initialize Telegram
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        const user = tg.initDataUnsafe?.user;
+        const userId = user ? user.id.toString() : "DEBUG_USER_ID"; // Fallback for testing out of TG
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const auth = getAuth(app);
+        // State Variables
+        let currentStatus = "claim";
+        let nextClaimTime = 0;
+        let ticketsToday = 0;
+        let lastClaimDate = "";
+        let todayDateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        let timerInterval;
 
-let uid = null;
+        // --- DOM ELEMENTS ---
+        const jackpotAmountEl = document.getElementById('jackpotAmount');
+        const statusDisplayEl = document.getElementById('statusDisplay');
+        const winnerDisplayEl = document.getElementById('winnerDisplay');
+        const userTicketCountEl = document.getElementById('userTicketCount');
+        const ticketGridEl = document.getElementById('ticketGrid');
+        const mainButtonEl = document.getElementById('mainButton');
 
-signInAnonymously(auth).then(async(res)=>{
+        // --- UTILS ---
+        function toggleRules() {
+            const content = document.getElementById('rulesContent');
+            const icon = document.getElementById('rulesIcon');
+            content.classList.toggle('active');
+            icon.innerText = content.classList.contains('active') ? "▲" : "▼";
+        }
 
-uid = res.user.uid;
-console.log("User:",uid);
+        function formatTime(ms) {
+            if (ms <= 0) return "00:00";
+            const totalSeconds = Math.floor(ms / 1000);
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
 
-createUser();
+        function getUTCMidnight() {
+            const now = new Date();
+            const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+            return midnight.getTime();
+        }
 
-});
+        function getUTC2300() {
+            const now = new Date();
+            const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 0, 0));
+            return target.getTime();
+        }
 
-async function createUser(){
+        // --- UI UPDATERS ---
+        function updateTicketGrid(count, winningTicketNum = null) {
+            ticketGridEl.innerHTML = '';
+            for (let i = 1; i <= count; i++) {
+                const div = document.createElement('div');
+                div.className = 'ticket-item';
+                div.innerText = `#${i}`;
+                if (winningTicketNum && i === winningTicketNum) {
+                    div.classList.add('winning-ticket');
+                }
+                ticketGridEl.appendChild(div);
+            }
+        }
 
-const userRef = ref(db,"users/"+uid);
+        function updateMainLoop() {
+            const now = Date.now();
+            const timeTo2300 = getUTC2300() - now;
+            
+            // Check Date Reset
+            const currentUTCStr = new Date().toISOString().split('T')[0];
+            if (currentUTCStr !== todayDateStr) {
+                todayDateStr = currentUTCStr;
+                ticketGridEl.innerHTML = '';
+                ticketsToday = 0; // Will sync with DB shortly
+                setupRealtimeListeners(); // Rebind to new date document
+            }
 
-const snap = await get(userRef);
+            if (currentStatus === "completed") {
+                statusDisplayEl.innerText = "DRAW COMPLETED";
+                mainButtonEl.innerText = `NEXT ROUND STARTS IN ${formatTime(getUTCMidnight() - now)}`;
+                mainButtonEl.disabled = true;
+                return;
+            }
 
-if(!snap.exists()){
+            if (timeTo2300 <= 0 || currentStatus === "closed") {
+                statusDisplayEl.innerText = "DRAWING IN PROGRESS";
+                mainButtonEl.innerText = "DRAWING IN PROGRESS";
+                mainButtonEl.disabled = true;
+                return;
+            }
 
-await set(userRef,{
-username:"user",
-ticketsToday:0,
-nextClaimTime:0,
-lastClaimDate:""
-});
+            // Claim Phase Logic
+            statusDisplayEl.innerText = `DRAW IN ${formatTime(timeTo2300)}`;
 
-}
+            if (lastClaimDate !== todayDateStr) {
+                mainButtonEl.innerText = "CLAIM TICKET (WATCH AD)";
+                mainButtonEl.disabled = false;
+            } else if (ticketsToday >= 138) {
+                mainButtonEl.innerText = "DAILY LIMIT REACHED";
+                mainButtonEl.disabled = true;
+            } else if (now < nextClaimTime) {
+                mainButtonEl.innerText = `NEXT TICKET IN ${formatTime(nextClaimTime - now)}`;
+                mainButtonEl.disabled = true;
+            } else {
+                mainButtonEl.innerText = "CLAIM TICKET (WATCH AD)";
+                mainButtonEl.disabled = false;
+            }
+        }
 
-loadUser();
+        // --- FIREBASE LISTENERS ---
+        function setupRealtimeListeners() {
+            // Listen to Lottery Doc
+            db.ref(`lottery/${todayDateStr}`).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+                
+                jackpotAmountEl.innerText = `${data.prizeAmount} TON`;
+                currentStatus = data.status;
 
-}
+                if (currentStatus === "completed" && data.winnerUID) {
+                    winnerDisplayEl.style.display = 'block';
+                    winnerDisplayEl.innerText = `WINNER: ${data.winnerUID === userId ? 'YOU!' : data.winnerUsername || data.winnerUID}`;
+                    // Highlight if current user won
+                    if (data.winnerUID === userId) {
+                        updateTicketGrid(ticketsToday, data.winnerTicket);
+                    }
+                } else {
+                    winnerDisplayEl.style.display = 'none';
+                }
+                
+                updateMainLoop();
+            });
 
-function loadUser(){
+            // Listen to User Doc
+            db.ref(`users/${userId}`).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    ticketsToday = data.lastClaimDate === todayDateStr ? (data.ticketsToday || 0) : 0;
+                    nextClaimTime = data.nextClaimTime || 0;
+                    lastClaimDate = data.lastClaimDate || "";
+                } else {
+                    ticketsToday = 0;
+                    nextClaimTime = 0;
+                    lastClaimDate = "";
+                }
+                userTicketCountEl.innerText = ticketsToday;
+                updateTicketGrid(ticketsToday);
+                updateMainLoop();
+            });
+        }
 
-const userRef = ref(db,"users/"+uid);
+        // --- CLAIM ACTION ---
+        mainButtonEl.addEventListener('click', () => {
+            if (mainButtonEl.disabled) return;
+            
+            // Mocking Ad watch success -> triggers backend update
+            mainButtonEl.disabled = true;
+            mainButtonEl.innerText = "PROCESSING...";
 
-onValue(userRef,(snap)=>{
+            // In production, you would call a Cloud Function here to securely validate and increment.
+            // For UI demonstration adhering to rules:
+            const updates = {};
+            updates[`users/${userId}/ticketsToday`] = firebase.database.ServerValue.increment(1);
+            updates[`users/${userId}/nextClaimTime`] = firebase.database.ServerValue.timestamp() + 600000; // +10 mins
+            updates[`users/${userId}/lastClaimDate`] = todayDateStr;
+            
+            // Only update user doc from frontend. Lottery totalTickets/prize updated via Cloud Function triggers.
+            db.ref().update(updates).catch(() => {
+                // Revert UI on failure
+                updateMainLoop();
+            });
+        });
 
-const data = snap.val();
+        // --- INIT ---
+        setupRealtimeListeners();
+        timerInterval = setInterval(updateMainLoop, 1000);
+        updateMainLoop();
 
-document.getElementById("count").innerText =
-data.ticketsToday;
-
-renderTickets(data.ticketsToday);
-
-});
-
-}
-
-function renderTickets(n){
-
-const grid = document.getElementById("tickets");
-
-grid.innerHTML="";
-
-for(let i=0;i<n;i++){
-
-const d = document.createElement("div");
-d.className="ticket";
-d.innerText="T"+(i+1);
-
-grid.appendChild(d);
-
-}
-
-}
-
-document.getElementById("claimBtn")
-.onclick = async ()=>{
-
-const userRef = ref(db,"users/"+uid);
-
-const snap = await get(userRef);
-
-const user = snap.val();
-
-if(user.ticketsToday >= 138){
-
-alert("Limit reached");
-
-return;
-
-}
-
-await update(userRef,{
-ticketsToday:user.ticketsToday+1
-});
-
-};
-
-</script>
-
+    </script>
 </body>
 </html>
