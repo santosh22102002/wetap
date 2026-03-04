@@ -350,7 +350,7 @@
             // For UI demonstration adhering to rules:
             const updates = {};
             updates[`users/${userId}/ticketsToday`] = firebase.database.ServerValue.increment(1);
-            updates[`users/${userId}/nextClaimTime`] = firebase.database.ServerValue.timestamp() + 600000; // +10 mins
+            updates[`users/${userId}/nextClaimTime`] = Date.now() + 600000; // +10 mins using standard JS
             updates[`users/${userId}/lastClaimDate`] = todayDateStr;
             
             // Only update user doc from frontend. Lottery totalTickets/prize updated via Cloud Function triggers.
