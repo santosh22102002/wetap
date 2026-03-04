@@ -339,23 +339,21 @@
         }
 
         // --- CLAIM ACTION ---
-        mainButtonEl.addEventListener('click', () => {
+       mainButtonEl.addEventListener('click', () => {
             if (mainButtonEl.disabled) return;
             
-            // Mocking Ad watch success -> triggers backend update
             mainButtonEl.disabled = true;
             mainButtonEl.innerText = "PROCESSING...";
 
-            // In production, you would call a Cloud Function here to securely validate and increment.
-            // For UI demonstration adhering to rules:
             const updates = {};
+            // 1. Increment tickets by 1 safely
             updates[`users/${userId}/ticketsToday`] = firebase.database.ServerValue.increment(1);
-            updates[`users/${userId}/nextClaimTime`] = Date.now() + 600000; // +10 mins using standard JS
+            // 2. Set next claim time using standard JavaScript Date.now()
+            updates[`users/${userId}/nextClaimTime`] = Date.now() + 600000; 
+            // 3. Update the claim date
             updates[`users/${userId}/lastClaimDate`] = todayDateStr;
             
-            // Only update user doc from frontend. Lottery totalTickets/prize updated via Cloud Function triggers.
             db.ref().update(updates).catch(() => {
-                // Revert UI on failure
                 updateMainLoop();
             });
         });
