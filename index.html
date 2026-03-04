@@ -7,35 +7,33 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"; // <-- Added Auth
 
         // REPLACE WITH YOUR FIREBASE CONFIG
         const firebaseConfig = { apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8", projectId: "upwebapp-19b3a" };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const auth = getAuth(app);
+        const auth = getAuth(app); // <-- Initialize Auth
 
         // Telegram Setup
         const tg = window.Telegram.WebApp;
         tg.expand();
-        const userId = tg.initDataUnsafe?.user?.id?.toString() || "DEV_USER";
+        const tgUserId = tg.initDataUnsafe?.user?.id?.toString() || "DEV_USER";
+        const tgUsername = tg.initDataUnsafe?.user?.username || "Unknown";
         
-        // State
+        let firebaseUid = null; // We will get this after login
         let todayStr = new Date().toISOString().split("T")[0];
         let state = { tickets: 0, max: 138, nextClaim: 0, status: "claim", prize: 0, winner: null };
         let timerInterval;
 
-        // UI Elements
         const elJackpot = document.getElementById("jackpot-amount");
         const elTimer = document.getElementById("timer-text");
         const elTicketCount = document.getElementById("ticket-count");
         const elGrid = document.getElementById("ticket-grid");
         const btnClaim = document.getElementById("btn-claim");
         
-        // Listeners
         const listenData = () => {
-            // 1. Lottery Doc Listener
             onSnapshot(doc(db, "lottery", todayStr), (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.data();
@@ -47,16 +45,15 @@
                 }
             });
 
-            // 2. User Doc Listener
-            onSnapshot(doc(db, "users", userId), (snapshot) => {
+            // Use the secure Firebase UID to read the document
+            onSnapshot(doc(db, "users", firebaseUid), (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.data();
                     if (data.lastClaimDate !== todayStr) {
                         state.tickets = 0;
                         state.nextClaim = 0;
-                        elGrid.innerHTML = ""; // Reset for new day
+                        elGrid.innerHTML = "";
                     } else {
-                        // Append new tickets instead of full re-render
                         while(elGrid.children.length < data.ticketsToday) {
                             const tDiv = document.createElement("div");
                             tDiv.className = "ticket-box";
@@ -74,7 +71,6 @@
 
         const updateUI = () => {
             clearInterval(timerInterval);
-            
             if (state.status === "claim") {
                 timerInterval = setInterval(() => {
                     const now = new Date();
@@ -87,11 +83,9 @@
                         btnClaim.disabled = true;
                         clearInterval(timerInterval);
                     } else {
-                        // Header draw countdown
                         const diff = drawTime - now;
                         elTimer.innerText = new Date(diff).toISOString().substr(11, 8);
                         
-                        // Button Logic
                         if (state.tickets >= state.max) {
                             btnClaim.innerText = "DAILY LIMIT REACHED";
                             btnClaim.disabled = true;
@@ -110,13 +104,10 @@
                 btnClaim.innerText = "DRAWING IN PROGRESS";
                 btnClaim.disabled = true;
             } else if (state.status === "completed") {
-                elTimer.innerText = `DRAW COMPLETED. WINNER: ${state.winner === userId ? "YOU!" : "ANNOUNCED SOON"}`;
-                
-                // Highlight winning ticket visually
-                if (state.winner === userId) {
+                elTimer.innerText = `DRAW COMPLETED. WINNER: ${state.winner === tgUserId ? "YOU!" : "ANNOUNCED SOON"}`;
+                if (state.winner === tgUserId) {
                      Array.from(elGrid.children).forEach(el => el.classList.add('winner'));
                 }
-
                 timerInterval = setInterval(() => {
                     const now = new Date();
                     const nextMidnight = new Date();
@@ -128,22 +119,21 @@
             }
         };
 
-        // Claim Function
         btnClaim.addEventListener("click", async () => {
             if (btnClaim.disabled) return;
             btnClaim.disabled = true;
             btnClaim.innerText = "PROCESSING...";
 
-            // (Ad Logic goes here)
-            
-            const userRef = doc(db, "users", userId);
+            // Use the secure Firebase UID to write the document
+            const userRef = doc(db, "users", firebaseUid);
             try {
                 if (state.tickets === 0) {
                     await setDoc(userRef, {
+                        telegramId: tgUserId, // <-- Save Telegram ID so the bot can DM them later
+                        username: tgUsername,
                         ticketsToday: 1,
                         lastClaimDate: todayStr,
-                        nextClaimTime: new Date(Date.now() + 10 * 60000), // ServerTimestamp ideally handled via callable func if possible, doing local + rules validation here
-                        username: tg.initDataUnsafe?.user?.username || "Unknown"
+                        nextClaimTime: new Date(Date.now() + 10 * 60000)
                     });
                 } else {
                     await updateDoc(userRef, {
@@ -151,24 +141,27 @@
                         nextClaimTime: new Date(Date.now() + 10 * 60000)
                     });
                 }
-                // Update prize pot
-                await updateDoc(doc(db, "lottery", todayStr), { prizeAmount: increment(10) }); // Example +10 per ticket
+                await updateDoc(doc(db, "lottery", todayStr), { prizeAmount: increment(10) }); 
             } catch (err) {
                 console.error("Claim failed", err);
-                tg.showAlert("Claim failed. Please try again.");
+                tg.showAlert("Claim failed. Please check your connection.");
                 updateUI();
             }
         });
 
-        // Rules Toggle
         document.getElementById("rules-toggle").addEventListener("click", () => {
             const content = document.getElementById("rules-content");
             content.style.display = content.style.display === "none" ? "block" : "none";
         });
 
-        // Init
-        // Note: Implement Custom Token Auth via your backend here: signInWithCustomToken(auth, token).then(listenData);
-        listenData(); 
+        // SECURE LOGIN FLOW
+        signInAnonymously(auth).then((userCredential) => {
+            firebaseUid = userCredential.user.uid; // Get secure ID
+            listenData(); // Start the app
+        }).catch((error) => {
+            console.error("Auth Error:", error);
+            tg.showAlert("Secure connection failed. Please restart the app.");
+        });
     </script>
     <style>
         * { box-sizing: border-box; font-family: 'Roboto', sans-serif; text-transform: uppercase; font-weight: bold; margin: 0; padding: 0; }
