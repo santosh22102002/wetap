@@ -132,16 +132,18 @@ databaseURL: "https://test-6f668-default-rtdb.asia-southeast1.firebasedatabase.a
   appId: "1:1070554867228:web:8f4abf585baa1d82f5e1d9",
   measurementId: "G-7XZ8F2FD5K"
 };
+   // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     // --- APP STATE ---
     const tg = window.Telegram.WebApp;
-    const user = tg.initDataUnsafe?.user || { id: "dev_user", first_name: "Tester" };
+    // Fallback user for browser testing
+    const user = tg.initDataUnsafe?.user || { id: "dev_user_123", first_name: "Tester" };
     let myTickets = [];
     let lastClaimTime = 0;
 
-    // --- INITIALIZE UI ---
+    // --- INITIALIZE UI GRID ---
     const grid = document.getElementById('grid');
     for(let i=0; i<50; i++) {
         const d = document.createElement('div');
@@ -151,13 +153,13 @@ databaseURL: "https://test-6f668-default-rtdb.asia-southeast1.firebasedatabase.a
         grid.appendChild(d);
     }
 
-    // --- CORE LOGIC ---
+    // --- FUNCTIONS ---
+
     function updateAppStatus() {
         const now = new Date();
         const h = now.getHours();
-        const m = now.getMinutes();
 
-        // Rules: 5 PM (17) Start, 12 PM (0) End
+        // 5 PM (17) Start, 12 AM (0) End
         const isLive = (h >= 17 || h < 0);
         const isDrawing = (h >= 14 && h < 17);
 
@@ -201,54 +203,42 @@ databaseURL: "https://test-6f668-default-rtdb.asia-southeast1.firebasedatabase.a
     }
 
     async function startClaimProcess() {
-    // 1. Anti-Cheat: Quick local verify of cooldown
-    const now = Date.now();
-    if (now - lastClaimTime < 10 * 60 * 1000) {
-        tg.showAlert("Please wait for the cooldown to finish!");
-        return;
-    }
+        if (Date.now() - lastClaimTime < 10 * 60 * 1000) {
+            alert("Please wait for the cooldown!");
+            return;
+        }
 
-    const message = "Watch a short video to claim 1 Ticket?";
-
-    // 2. Version-Safe Confirmation
-    if (tg.isVersionAtLeast('6.2')) {
-        // Modern Telegram Popup
-        tg.showConfirm(message, (ok) => {
-            if (ok) simulateAdAndGenerate();
-        });
-    } else {
-        // Fallback for version 6.0 and below
-        if (confirm(message)) {
-            simulateAdAndGenerate();
+        const message = "Watch a short video to claim 1 Ticket?";
+        if (tg.isVersionAtLeast('6.2')) {
+            tg.showConfirm(message, (ok) => { if (ok) simulateAdAndGenerate(); });
+        } else {
+            if (confirm(message)) simulateAdAndGenerate();
         }
     }
-}
 
-function simulateAdAndGenerate() {
-    // Show a temporary loading state on the button
-    const btn = document.getElementById('claim-btn');
-    const originalText = btn.innerText;
-    btn.disabled = true;
-    btn.innerText = "WATCHING AD...";
+    function simulateAdAndGenerate() {
+        const btn = document.getElementById('claim-btn');
+        btn.disabled = true;
+        btn.innerText = "WATCHING AD...";
 
-    // Simulate the 3-second "Ad" experience
-    setTimeout(() => {
-        generateTicket();
-        btn.innerText = originalText;
-    }, 3000);
-}
-
-    function safeAlert(msg) {
-    if (tg.isVersionAtLeast('6.2')) {
-        tg.showAlert(msg);
-    } else {
-        alert(msg);
+        setTimeout(() => {
+            generateTicket(); // Now this is defined below!
+            btn.innerText = "WATCH AD TO CLAIM";
+        }, 3000);
     }
-}
 
-    // --- DATA SYNC ---
+    function generateTicket() {
+        // Generate number between 100000 and 999999
+        const ticketNum = Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000;
+        
+        const userRef = db.ref(`users/${user.id}`);
+        // Anti-cheat: push to backend
+        userRef.child('tickets').push(ticketNum);
+        userRef.child('lastClaim').set(Date.now());
+        console.log("Ticket Generated: ", ticketNum);
+    }
+
     function syncData() {
-        // Watch User Tickets
         db.ref(`users/${user.id}`).on('value', (snap) => {
             const data = snap.val();
             if (data) {
@@ -256,27 +246,34 @@ function simulateAdAndGenerate() {
                 lastClaimTime = data.lastClaim || 0;
                 
                 document.getElementById('count').innerText = myTickets.length;
+                // Clear grid first
+                for(let i=0; i<50; i++) document.getElementById(`slot-${i}`).innerText = '------';
+                
                 myTickets.forEach((num, i) => {
                     const el = document.getElementById(`slot-${i}`);
-                    el.innerText = num;
-                    el.classList.add('filled');
+                    if(el) {
+                        el.innerText = num;
+                        el.classList.add('filled');
+                    }
                 });
             }
             document.getElementById('loader').style.display = 'none';
         });
 
-        // Watch Global Winner
         db.ref(`global/lastWinner`).on('value', (snap) => {
             const winner = snap.val();
             document.getElementById('winner-box').innerText = winner ? `WINNER: #${winner}` : "WINNER: PENDING...";
         });
     }
 
-    // Initialize
-    setInterval(updateAppStatus, 1000);
-    syncData();
-    tg.expand();
-    tg.ready();
+    // --- INITIALIZE ---
+    window.onload = () => {
+        console.log("Firebase loaded successfully!");
+        setInterval(updateAppStatus, 1000);
+        syncData();
+        tg.expand();
+        tg.ready();
+    };
 </script>
 </body>
 </html>
