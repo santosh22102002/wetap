@@ -107,17 +107,31 @@ const firebaseConfig = {
             });
         }
 
-        async function startAdFlow() {
-            const AdController = window.Adsgram.init({ blockId: "24316" });
-            try {
-                const result = await AdController.show();
-                if (result.done) {
-                    tg.showAlert("Success! Ticket will appear shortly.");
-                }
-            } catch (e) {
-                tg.showAlert("Ad error. Check console.");
-            }
+       async function startAdFlow() {
+    // Check if the Adsgram library exists
+    if (!window.Adsgram) {
+        tg.showAlert("Ad network still loading... please wait 2 seconds.");
+        return;
+    }
+
+    // Initialize only when clicked
+    const AdController = window.Adsgram.init({ blockId: "24316" });
+
+    try {
+        const result = await AdController.show();
+        if (result.done) {
+            tg.showAlert("Ad finished! Your ticket is being processed.");
+            // Note: The ticket will appear automatically via the Firestore listener
         }
+    } catch (e) {
+        console.error("AdsGram Error:", e);
+        if (e.error === 'no_fill') {
+            tg.showAlert("No ads available right now. Try again later.");
+        } else {
+            tg.showAlert("Could not load ad.");
+        }
+    }
+}
 
         function runTimer() {
             const now = Date.now();
