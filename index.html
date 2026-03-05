@@ -6,127 +6,45 @@
     <title>Daily Paper Lottery</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://adsgram.ai/sdk/v1/adsgram.js"></script>
-   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <style>
-        :root {
-            --paper-bg: #fdf6e3;
-            --ink-blue: #2c3e50;
-            --accent-red: #e74c3c;
-            --pencil-grey: #7f8c8d;
-        }
-
-        body {
-            margin: 0;
-            padding: 20px;
-            font-family: 'Courier New', Courier, monospace;
-            background-color: var(--paper-bg);
-            color: var(--ink-blue);
-            line-height: 1.2;
-            overflow-x: hidden;
-        }
-
-        /* Loading Overlay */
-        #loader {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--paper-bg);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            font-weight: bold;
-        }
-
-        /* Header UI (Left Aligned) */
-        .lottery-title { font-size: 26px; font-weight: 900; margin: 0; text-transform: uppercase; }
-        .timer-display { font-size: 16px; color: var(--accent-red); margin: 5px 0; font-weight: bold; }
-        .prize-amount { font-size: 20px; margin-bottom: 20px; }
-
-        .spacer { height: 30px; }
-
-        /* Ticket Grid UI */
-        .section-label { font-size: 14px; font-weight: bold; margin-bottom: 10px; text-decoration: underline; }
-        
-        #ticket-grid {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr); /* 10 columns */
-            gap: 4px;
-            width: 100%;
-        }
-
-        .ticket-cell {
-            font-size: 8px;
-            text-align: center;
-            padding: 6px 0;
-            background: rgba(44, 62, 80, 0.05); /* Slight tint for "paper" slots */
-            border-radius: 2px;
-        }
-
-        .active-ticket {
-            color: var(--accent-red);
-            font-weight: bold;
-        }
-
-        /* Bottom Controls */
-        .footer {
-            position: fixed;
-            bottom: 40px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            padding: 0 20px;
-        }
-
-        #claimBtn {
-            background: var(--ink-blue);
-            color: white;
-            border: none;
-            width: 100%;
-            padding: 16px;
-            font-family: inherit;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 0; /* Boxy paper look */
-        }
-
-        #claimBtn:disabled { background: #bdc3c7; cursor: not-allowed; }
-        
-        .cooldown-text {
-            margin-top: 10px;
-            font-size: 12px;
-            color: var(--pencil-grey);
-        }
+        :root { --paper-bg: #fdf6e3; --ink-blue: #2c3e50; --accent-red: #e74c3c; }
+        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background-color: var(--paper-bg); color: var(--ink-blue); }
+        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--paper-bg); display: flex; justify-content: center; align-items: center; z-index: 1000; font-weight: bold; }
+        .lottery-title { font-size: 24px; font-weight: 900; text-align: left; }
+        .timer-display { font-size: 16px; color: var(--accent-red); margin: 5px 0; text-align: left; }
+        .prize-amount { font-size: 20px; margin-bottom: 20px; text-align: left; }
+        #ticket-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; width: 100%; }
+        .ticket-cell { font-size: 8px; text-align: center; padding: 6px 0; background: rgba(0,0,0,0.05); }
+        .footer { position: fixed; bottom: 30px; left: 20px; right: 20px; }
+        #claimBtn { background: var(--ink-blue); color: white; border: none; width: 100%; padding: 15px; font-family: inherit; font-size: 18px; }
+        #claimBtn:disabled { background: #ccc; }
     </style>
 </head>
 <body>
 
-    <div id="loader">
-        <div>FETCHING TICKET DATA...</div>
-    </div>
+    <div id="loader">INITIALIZING...</div>
 
     <div class="lottery-title">DAILY GRAND LOTTERY</div>
-    <div class="timer-display" id="status-text">SYNCING...</div>
-    <div class="prize-amount" id="prize-text">JACKPOT: $1,000</div>
+    <div class="timer-display" id="status-text">CONNECTING...</div>
+    <div class="prize-amount">JACKPOT: $1,000</div>
 
-    <div class="spacer"></div>
-
-    <div class="section-label">YOUR CLAIMED TICKETS (<span id="count">0</span>/50)</div>
-    <div id="ticket-grid">
-        </div>
+    <div style="height: 30px;"></div>
+    <div style="font-weight: bold; margin-bottom: 10px;">YOUR TICKETS (<span id="count">0</span>/50)</div>
+    
+    <div id="ticket-grid"></div>
 
     <div class="footer">
         <button id="claimBtn" onclick="startAdFlow()">CLAIM TICKET</button>
-        <div class="cooldown-text" id="cd-timer"></div>
+        <div id="cd-timer" style="text-align: center; font-size: 12px; margin-top: 10px;"></div>
     </div>
 
     <script>
-        // --- 1. FIREBASE CONFIG ---
-       // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // --- CONFIG & STATE ---
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
   authDomain: "upwebapp-19b3a.firebaseapp.com",
@@ -137,95 +55,70 @@ const firebaseConfig = {
   appId: "1:746730266775:web:6ebf4d939b4a628c27c9d2",
   measurementId: "G-PBW98E4FTG"
 };
+
         firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const tg = window.Telegram.WebApp;
+        const userId = tg.initDataUnsafe?.user?.id?.toString() || "test_user";
 
-// Initialize Services
-const db = firebase.firestore();
-const auth = firebase.auth(); // Now this will work!
+        let isLotteryOpen = false;
+        let cooldownEndTime = 0;
 
-const tg = window.Telegram.WebApp;
-const userId = tg.initDataUnsafe?.user?.id?.toString() || "test_user";
+        // --- FUNCTIONS (Defined before calling) ---
 
-// --- 3. AUTHENTICATION & SYNC ---
-auth.signInAnonymously()
-    .then(() => {
-        console.log("Authenticated as:", auth.currentUser.uid);
-        // ONLY call syncData after successful login
-        syncData(); 
-    })
-    .catch((error) => {
-        console.error("Auth Error:", error);
-        document.getElementById('loader').innerText = "AUTH FAILED. RELOAD APP.";
-    });
+        function initGrid() {
+            const grid = document.getElementById('ticket-grid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 50; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'ticket-cell';
+                cell.id = `t-${i}`;
+                cell.innerText = '------';
+                grid.appendChild(cell);
+            }
+        }
 
-// Make sure to remove the direct syncData() call from the very bottom 
-// so it only runs inside the .then() block above.
-
-// IMPORTANT: Wrap your existing syncData() call inside this login 
-// and REMOVE the syncData() call from the very bottom of your script.
-        
-        // --- 4. REALTIME DATABASE LISTENERS ---
         function syncData() {
-            // Listen to Lottery Status (Global)
+            // 1. Lottery Status
             db.collection('lottery_system').doc('current').onSnapshot((doc) => {
-                const data = doc.data();
-                if (data) {
-                    const statusText = document.getElementById('status-text');
-                    if (data.status === "OPEN") {
-                        statusText.innerText = "STATUS: OPEN (DRAW AT 5PM)";
-                        isLotteryOpen = true;
-                    } else if (data.status === "CLOSED") {
-                        statusText.innerText = `WINNING NO: ${data.winning_number || 'PENDING'}`;
-                        isLotteryOpen = false;
-                    }
+                if (doc.exists) {
+                    const data = doc.data();
+                    isLotteryOpen = (data.status === "OPEN");
+                    document.getElementById('status-text').innerText = isLotteryOpen ? "STATUS: OPEN" : "STATUS: CLOSED";
                 }
             });
 
-            // Listen to User's Tickets
-            db.collection('users').doc(userId).collection('tickets')
-                .orderBy('timestamp', 'asc')
-                .onSnapshot((snapshot) => {
-                    document.getElementById('count').innerText = snapshot.size;
-                    snapshot.docs.forEach((doc, index) => {
-                        const cell = document.getElementById(`t-${index}`);
-                        if (cell) {
-                            cell.innerText = doc.data().number;
-                            cell.classList.add('active-ticket');
-                        }
-                    });
-                    document.getElementById('loader').style.display = 'none';
+            // 2. User Tickets
+            db.collection('users').doc(userId).collection('tickets').orderBy('timestamp', 'asc').onSnapshot((snap) => {
+                document.getElementById('count').innerText = snap.size;
+                snap.docs.forEach((doc, i) => {
+                    const cell = document.getElementById(`t-${i}`);
+                    if (cell) { cell.innerText = doc.data().number; cell.style.color = 'red'; }
                 });
+                document.getElementById('loader').style.display = 'none';
+            });
 
-            // Listen to User Cooldown
+            // 3. Cooldown
             db.collection('users').doc(userId).onSnapshot((doc) => {
                 if (doc.exists && doc.data().lastClaimTime) {
-                    cooldownEndTime = doc.data().lastClaimTime + (10 * 60 * 1000); // +10 mins
+                    cooldownEndTime = doc.data().lastClaimTime + (10 * 60 * 1000);
                 }
             });
         }
 
-        // --- 5. ADSGRAM & CLAIM LOGIC ---
         async function startAdFlow() {
-            if (!isLotteryOpen) {
-                tg.showAlert("Lottery is currently closed!");
-                return;
-            }
-
-            const AdController = window.Adsgram.init({ blockId: "24315" });
-
+            const AdController = window.Adsgram.init({ blockId: "24316" });
             try {
                 const result = await AdController.show();
                 if (result.done) {
-                    // Success! The Cloud Function (Reward URL) will handle adding the ticket.
-                    // We just wait for the Firestore listener to update our UI.
-                    tg.showAlert("Ad watched! Your ticket is being generated...");
+                    tg.showAlert("Success! Ticket will appear shortly.");
                 }
             } catch (e) {
-                tg.showAlert("Ad failed to load. Please try again.");
+                tg.showAlert("Ad error. Check console.");
             }
         }
 
-        // --- 6. WORKING TIMER (PER SECOND) ---
         function runTimer() {
             const now = Date.now();
             const btn = document.getElementById('claimBtn');
@@ -233,21 +126,24 @@ auth.signInAnonymously()
 
             if (now < cooldownEndTime) {
                 const diff = Math.ceil((cooldownEndTime - now) / 1000);
-                const mins = Math.floor(diff / 60);
-                const secs = diff % 60;
                 btn.disabled = true;
-                cdDisplay.innerText = `Next ticket available in ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                cdDisplay.innerText = `Wait: ${Math.floor(diff/60)}:${(diff%60).toString().padStart(2,'0')}`;
             } else {
                 btn.disabled = !isLotteryOpen;
-                cdDisplay.innerText = isLotteryOpen ? "Ready to claim!" : "Waiting for next round...";
+                cdDisplay.innerText = isLotteryOpen ? "Ready!" : "Closed";
             }
         }
 
-        // Launch
+        // --- STARTUP LOGIC ---
         initGrid();
-        syncData();
-        setInterval(runTimer, 1000);
-        tg.expand();
+        auth.signInAnonymously().then(() => {
+            syncData();
+            setInterval(runTimer, 1000);
+            tg.expand();
+        }).catch(err => {
+            document.getElementById('loader').innerText = "AUTH FAILED: " + err.message;
+        });
+
     </script>
 </body>
 </html>
