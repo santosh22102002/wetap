@@ -6,8 +6,9 @@
     <title>Daily Paper Lottery</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://adsgram.ai/sdk/v1/adsgram.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <style>
         :root {
@@ -137,37 +138,28 @@ const firebaseConfig = {
   measurementId: "G-PBW98E4FTG"
 };
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
 
-        // --- 2. TELEGRAM & APP STATE ---
-        const tg = window.Telegram.WebApp;
-        const userId = tg.initDataUnsafe?.user?.id?.toString() || "test_user";
-        let cooldownEndTime = 0;
-        let isLotteryOpen = false;
+// Initialize Services
+const db = firebase.firestore();
+const auth = firebase.auth(); // Now this will work!
 
-        // --- 3. INITIALIZE UI ---
-        function initGrid() {
-            const grid = document.getElementById('ticket-grid');
-            for (let i = 0; i < 50; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'ticket-cell';
-                cell.id = `t-${i}`;
-                cell.innerText = '------';
-                grid.appendChild(cell);
-            }
-        }
+const tg = window.Telegram.WebApp;
+const userId = tg.initDataUnsafe?.user?.id?.toString() || "test_user";
 
-    // Add this right after initialization
-firebase.auth().signInAnonymously()
-  .then(() => {
-    console.log("Authenticated with Firebase");
-    // Only start syncing data AFTER we are logged in
-    syncData(); 
-  })
-  .catch((error) => {
-    console.error("Auth failed:", error);
-    tg.showAlert("Failed to connect to security server.");
-  });
+// --- 3. AUTHENTICATION & SYNC ---
+auth.signInAnonymously()
+    .then(() => {
+        console.log("Authenticated as:", auth.currentUser.uid);
+        // ONLY call syncData after successful login
+        syncData(); 
+    })
+    .catch((error) => {
+        console.error("Auth Error:", error);
+        document.getElementById('loader').innerText = "AUTH FAILED. RELOAD APP.";
+    });
+
+// Make sure to remove the direct syncData() call from the very bottom 
+// so it only runs inside the .then() block above.
 
 // IMPORTANT: Wrap your existing syncData() call inside this login 
 // and REMOVE the syncData() call from the very bottom of your script.
