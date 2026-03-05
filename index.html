@@ -157,6 +157,21 @@ const firebaseConfig = {
             }
         }
 
+    // Add this right after initialization
+firebase.auth().signInAnonymously()
+  .then(() => {
+    console.log("Authenticated with Firebase");
+    // Only start syncing data AFTER we are logged in
+    syncData(); 
+  })
+  .catch((error) => {
+    console.error("Auth failed:", error);
+    tg.showAlert("Failed to connect to security server.");
+  });
+
+// IMPORTANT: Wrap your existing syncData() call inside this login 
+// and REMOVE the syncData() call from the very bottom of your script.
+        
         // --- 4. REALTIME DATABASE LISTENERS ---
         function syncData() {
             // Listen to Lottery Status (Global)
