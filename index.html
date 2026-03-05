@@ -201,31 +201,38 @@ databaseURL: "https://test-6f668-default-rtdb.asia-southeast1.firebasedatabase.a
             document.getElementById('cooldown-text').innerText = "Ticket available!";
         }
     }
+    // --- INITIALIZE ADSGRAM ---
+// Place this at the top of your script, before any functions
+const AdController = window.Adsgram?.init({ 
+    blockId: "24316", // <-- ADD YOUR BLOCK ID HERE
+    debug: false 
+});
 
     async function startClaimProcess() {
-        if (Date.now() - lastClaimTime < 10 * 60 * 1000) {
-            alert("Please wait for the cooldown!");
-            return;
-        }
-
-        const message = "Watch a short video to claim 1 Ticket?";
-        if (tg.isVersionAtLeast('6.2')) {
-            tg.showConfirm(message, (ok) => { if (ok) simulateAdAndGenerate(); });
-        } else {
-            if (confirm(message)) simulateAdAndGenerate();
-        }
-    }
-
-    function simulateAdAndGenerate() {
+    if (AdController) {
         const btn = document.getElementById('claim-btn');
         btn.disabled = true;
-        btn.innerText = "WATCHING AD...";
+        btn.innerText = "LOADING AD...";
 
-        setTimeout(() => {
-            generateTicket(); // Now this is defined below!
-            btn.innerText = "WATCH AD TO CLAIM";
-        }, 3000);
+        AdController.show()
+            .then((result) => {
+                // SUCCESS: The user finished the ad.
+                // The S2S Callback you set up in Firebase will handle the ticket.
+                tg.showAlert("Success! Your ticket will arrive shortly.");
+            })
+            .catch((result) => {
+                // ERROR/SKIP: User closed the ad or it failed to load.
+                console.log("Ad result:", result);
+                tg.showAlert("You must watch the full video to get a ticket.");
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerText = "WATCH AD TO CLAIM";
+            });
+    } else {
+        tg.showAlert("Ad system not ready. Please refresh.");
     }
+}
 
     function generateTicket() {
         // Generate number between 100000 and 999999
