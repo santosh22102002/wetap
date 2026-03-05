@@ -3,177 +3,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Daily Paper Lottery</title>
+    <title>Paper Lotto</title>
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-database-compat.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://adsgram.ai/sdk/v1/adsgram.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://sad.adsgram.ai/js/adsgram-ad-sdk.js"></script>
 
     <style>
-        :root { --paper-bg: #fdf6e3; --ink-blue: #2c3e50; --accent-red: #e74c3c; }
-        body { margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace; background-color: var(--paper-bg); color: var(--ink-blue); }
-        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--paper-bg); display: flex; justify-content: center; align-items: center; z-index: 1000; font-weight: bold; }
-        .lottery-title { font-size: 24px; font-weight: 900; text-align: left; }
-        .timer-display { font-size: 16px; color: var(--accent-red); margin: 5px 0; text-align: left; }
-        .prize-amount { font-size: 20px; margin-bottom: 20px; text-align: left; }
-        #ticket-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; width: 100%; }
-        .ticket-cell { font-size: 8px; text-align: center; padding: 6px 0; background: rgba(0,0,0,0.05); }
-        .footer { position: fixed; bottom: 30px; left: 20px; right: 20px; }
-        #claimBtn { background: var(--ink-blue); color: white; border: none; width: 100%; padding: 15px; font-family: inherit; font-size: 18px; }
-        #claimBtn:disabled { background: #ccc; }
+        :root {
+            --paper: #f4f1ea;
+            --ink: #33322e;
+            --accent: #bc3a3a;
+        }
+        body {
+            background-color: #222;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            color: var(--ink);
+        }
+        #app {
+            background-color: var(--paper);
+            width: 100%;
+            max-width: 450px;
+            min-height: 95vh;
+            padding: 20px;
+            position: relative;
+            box-shadow: 10px 10px 0px rgba(0,0,0,0.2);
+            background-image: radial-gradient(#dcd7ca 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        /* Paper Header Section */
+        .header { border-bottom: 2px dashed #bbb; padding-bottom: 15px; margin-bottom: 20px; }
+        h1 { font-size: 1.5rem; margin: 0; text-align: left; }
+        .stat-line { text-align: left; margin: 5px 0; font-weight: bold; }
+        .timer { color: var(--accent); font-size: 1.1rem; }
+        .winner-tag { background: #e0dccf; padding: 10px; margin-top: 10px; font-size: 1.2rem; }
+
+        /* Ticket Grid (10 rows x 5 columns) */
+        .ticket-area-title { margin: 20px 0 10px 0; text-transform: uppercase; font-size: 0.9rem; border-bottom: 1px solid #ccc; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 2px;
+        }
+        .cell {
+            background: rgba(255,255,255,0.5);
+            font-size: 0.65rem;
+            padding: 8px 0;
+            text-align: center;
+        }
+        .cell.filled { color: var(--accent); font-weight: bold; }
+
+        /* Claim Button */
+        #claim-btn {
+            width: 100%;
+            padding: 18px;
+            background: var(--ink);
+            color: var(--paper);
+            border: none;
+            font-family: inherit;
+            font-weight: bold;
+            margin-top: 25px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        #claim-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Loading Overlay */
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: var(--paper);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .cooldown-info { font-size: 0.8rem; text-align: center; margin-top: 8px; font-style: italic; }
     </style>
 </head>
 <body>
 
-    <div id="loader">INITIALIZING...</div>
+<div id="loader">
+    <h2>AUTHENTICATING...</h2>
+    <p>Fetching from Ledger</p>
+</div>
 
-    <div class="lottery-title">DAILY GRAND LOTTERY</div>
-    <div class="timer-display" id="status-text">CONNECTING...</div>
-    <div class="prize-amount">JACKPOT: $1,000</div>
-
-    <div style="height: 30px;"></div>
-    <div style="font-weight: bold; margin-bottom: 10px;">YOUR TICKETS (<span id="count">0</span>/50)</div>
-    
-    <div id="ticket-grid"></div>
-
-    <div class="footer">
-        <button id="claimBtn" onclick="startAdFlow()">CLAIM TICKET</button>
-        <div id="cd-timer" style="text-align: center; font-size: 12px; margin-top: 10px;"></div>
+<div id="app">
+    <div class="header">
+        <h1>DAILY PAPER LOTTO</h1>
+        <div id="lottery-status" class="stat-line timer">WAITING...</div>
+        <div class="stat-line">PRIZE: 50,000 STARS</div>
+        <div id="winner-box" class="winner-tag">WINNER: PENDING...</div>
     </div>
 
-    <script>
-        // --- CONFIG & STATE ---
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    <div class="spacer" style="height: 30px;"></div>
+
+    <div class="ticket-area-title">YOUR REGISTERED TICKETS (<span id="count">0</span>/50)</div>
+    <div class="grid" id="grid"></div>
+
+    <button id="claim-btn" onclick="startClaimProcess()">WATCH AD TO CLAIM</button>
+    <div id="cooldown-text" class="cooldown-info"></div>
+</div>
+
+<script>
+    // --- FIREBASE CONFIG ---
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyA3-qDlnHoG2YlleWGfZy6wNBWkkNJ54x8",
-  authDomain: "upwebapp-19b3a.firebaseapp.com",
-  databaseURL: "https://upwebapp-19b3a-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "upwebapp-19b3a",
-  storageBucket: "upwebapp-19b3a.firebasestorage.app",
-  messagingSenderId: "746730266775",
-  appId: "1:746730266775:web:6ebf4d939b4a628c27c9d2",
-  measurementId: "G-PBW98E4FTG"
+  apiKey: "AIzaSyAK315b3-j5RrIvx0vH2OE_mdd86Zbd8Wc",
+  authDomain: "test-6f668.firebaseapp.com",
+  projectId: "test-6f668",
+  storageBucket: "test-6f668.firebasestorage.app",
+  messagingSenderId: "1070554867228",
+  appId: "1:1070554867228:web:8f4abf585baa1d82f5e1d9",
+  measurementId: "G-7XZ8F2FD5K"
 };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        const auth = firebase.auth();
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-// If the version is very old, you might want to force an update check
-console.log("WebApp Version:", tg.version);
-        const userId = tg.initDataUnsafe?.user?.id?.toString() || "test_user";
+    // --- APP STATE ---
+    const tg = window.Telegram.WebApp;
+    const user = tg.initDataUnsafe?.user || { id: "dev_user", first_name: "Tester" };
+    let myTickets = [];
+    let lastClaimTime = 0;
 
-        let isLotteryOpen = false;
-        let cooldownEndTime = 0;
+    // --- INITIALIZE UI ---
+    const grid = document.getElementById('grid');
+    for(let i=0; i<50; i++) {
+        const d = document.createElement('div');
+        d.className = 'cell';
+        d.id = `slot-${i}`;
+        d.innerText = '------';
+        grid.appendChild(d);
+    }
 
-        // --- FUNCTIONS (Defined before calling) ---
+    // --- CORE LOGIC ---
+    function updateAppStatus() {
+        const now = new Date();
+        const h = now.getHours();
+        const m = now.getMinutes();
 
-        function initGrid() {
-            const grid = document.getElementById('ticket-grid');
-            grid.innerHTML = '';
-            for (let i = 0; i < 50; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'ticket-cell';
-                cell.id = `t-${i}`;
-                cell.innerText = '------';
-                grid.appendChild(cell);
-            }
+        // Rules: 5 PM (17) Start, 12 PM (0) End
+        const isLive = (h >= 17 || h < 0);
+        const isDrawing = (h >= 14 && h < 17);
+
+        const statusEl = document.getElementById('lottery-status');
+        const btn = document.getElementById('claim-btn');
+
+        if (isLive) {
+            statusEl.innerText = "STATUS: LIVE (Ends at 12 PM)";
+            checkButtonCooldown();
+        } else if (isDrawing) {
+            statusEl.innerText = "STATUS: DRAWING IN PROGRESS";
+            btn.disabled = true;
+            btn.innerText = "DRAWING...";
+        } else {
+            statusEl.innerText = "STATUS: CLOSED (Starts 5 PM)";
+            btn.disabled = true;
+            btn.innerText = "LOTTERY CLOSED";
+        }
+    }
+
+    function checkButtonCooldown() {
+        if (myTickets.length >= 50) {
+            document.getElementById('claim-btn').disabled = true;
+            document.getElementById('claim-btn').innerText = "LIMIT REACHED";
+            return;
         }
 
-        function syncData() {
-            // 1. Lottery Status
-            db.collection('lottery_system').doc('current').onSnapshot((doc) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    isLotteryOpen = (data.status === "OPEN");
-                    document.getElementById('status-text').innerText = isLotteryOpen ? "STATUS: OPEN" : "STATUS: CLOSED";
-                }
-            });
+        const now = Date.now();
+        const diff = now - lastClaimTime;
+        const cooldown = 10 * 60 * 1000;
 
-            // 2. User Tickets
-            db.collection('users').doc(userId).collection('tickets').orderBy('timestamp', 'asc').onSnapshot((snap) => {
-                document.getElementById('count').innerText = snap.size;
-                snap.docs.forEach((doc, i) => {
-                    const cell = document.getElementById(`t-${i}`);
-                    if (cell) { cell.innerText = doc.data().number; cell.style.color = 'red'; }
+        if (diff < cooldown) {
+            const rem = Math.ceil((cooldown - diff) / 1000);
+            document.getElementById('claim-btn').disabled = true;
+            document.getElementById('cooldown-text').innerText = `Next ticket in ${Math.floor(rem/60)}m ${rem%60}s`;
+        } else {
+            document.getElementById('claim-btn').disabled = false;
+            document.getElementById('claim-btn').innerText = "WATCH AD TO CLAIM";
+            document.getElementById('cooldown-text').innerText = "Ticket available!";
+        }
+    }
+
+    async function startClaimProcess() {
+        // Anti-Cheat: Quick local verify
+        if (Date.now() - lastClaimTime < 10 * 60 * 1000) return;
+
+        // ADSGRAM INTEGRATION (Simulated)
+        // In production use: AdController.show().then(...)
+        tg.showConfirm("Watch short video for 1 Ticket?", (ok) => {
+            if (ok) {
+                generateTicket();
+            }
+        });
+    }
+
+    function generateTicket() {
+        const ticketNum = Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000;
+        
+        // Push to Firebase
+        const userRef = db.ref(`users/${user.id}`);
+        userRef.child('tickets').push(ticketNum);
+        userRef.child('lastClaim').set(Date.now());
+    }
+
+    // --- DATA SYNC ---
+    function syncData() {
+        // Watch User Tickets
+        db.ref(`users/${user.id}`).on('value', (snap) => {
+            const data = snap.val();
+            if (data) {
+                myTickets = data.tickets ? Object.values(data.tickets) : [];
+                lastClaimTime = data.lastClaim || 0;
+                
+                document.getElementById('count').innerText = myTickets.length;
+                myTickets.forEach((num, i) => {
+                    const el = document.getElementById(`slot-${i}`);
+                    el.innerText = num;
+                    el.classList.add('filled');
                 });
-                document.getElementById('loader').style.display = 'none';
-            });
-
-            // 3. Cooldown
-            db.collection('users').doc(userId).onSnapshot((doc) => {
-                if (doc.exists && doc.data().lastClaimTime) {
-                    cooldownEndTime = doc.data().lastClaimTime + (10 * 60 * 1000);
-                }
-            });
-        }
-
-       async function startAdFlow() {
-    // Helper to handle alerts on old Telegram versions
-    const safeAlert = (msg) => {
-        if (tg.isVersionAtLeast('6.2')) {
-            tg.showAlert(msg);
-        } else {
-            alert(msg);
-        }
-    };
-
-    // Check if Adsgram library is loaded
-    if (typeof window.Adsgram === 'undefined') {
-        safeAlert("Ad network not ready. Please refresh.");
-        return;
-    }
-
-    if (!isLotteryOpen) {
-        safeAlert("Lottery is currently closed!");
-        return;
-    }
-
-    // Replace 'YOUR_BLOCK_ID' with your actual AdsGram ID
-    const AdController = window.Adsgram.init({ blockId: "YOUR_BLOCK_ID" });
-
-    try {
-        const result = await AdController.show();
-        if (result.done) {
-            safeAlert("Success! Ticket processed.");
-        }
-    } catch (e) {
-        console.error("AdsGram Error:", e);
-        if (e.error === 'no_fill') {
-            safeAlert("No ads available. Try again later.");
-        } else {
-            safeAlert("Ad failed to load.");
-        }
-    }
-}
-
-        function runTimer() {
-            const now = Date.now();
-            const btn = document.getElementById('claimBtn');
-            const cdDisplay = document.getElementById('cd-timer');
-
-            if (now < cooldownEndTime) {
-                const diff = Math.ceil((cooldownEndTime - now) / 1000);
-                btn.disabled = true;
-                cdDisplay.innerText = `Wait: ${Math.floor(diff/60)}:${(diff%60).toString().padStart(2,'0')}`;
-            } else {
-                btn.disabled = !isLotteryOpen;
-                cdDisplay.innerText = isLotteryOpen ? "Ready!" : "Closed";
             }
-        }
-
-        // --- STARTUP LOGIC ---
-        initGrid();
-        auth.signInAnonymously().then(() => {
-            syncData();
-            setInterval(runTimer, 1000);
-            tg.expand();
-        }).catch(err => {
-            document.getElementById('loader').innerText = "AUTH FAILED: " + err.message;
+            document.getElementById('loader').style.display = 'none';
         });
 
-    </script>
+        // Watch Global Winner
+        db.ref(`global/lastWinner`).on('value', (snap) => {
+            const winner = snap.val();
+            document.getElementById('winner-box').innerText = winner ? `WINNER: #${winner}` : "WINNER: PENDING...";
+        });
+    }
+
+    // Initialize
+    setInterval(updateAppStatus, 1000);
+    syncData();
+    tg.expand();
+    tg.ready();
+</script>
 </body>
 </html>
