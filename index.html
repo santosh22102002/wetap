@@ -60,6 +60,9 @@ const firebaseConfig = {
         const db = firebase.firestore();
         const auth = firebase.auth();
         const tg = window.Telegram.WebApp;
+        tg.ready();
+// If the version is very old, you might want to force an update check
+console.log("WebApp Version:", tg.version);
         const userId = tg.initDataUnsafe?.user?.id?.toString() || "test_user";
 
         let isLotteryOpen = false;
@@ -108,27 +111,40 @@ const firebaseConfig = {
         }
 
        async function startAdFlow() {
-    // Check if the Adsgram library exists
-    if (!window.Adsgram) {
-        tg.showAlert("Ad network still loading... please wait 2 seconds.");
+    // Helper to handle alerts on old Telegram versions
+    const safeAlert = (msg) => {
+        if (tg.isVersionAtLeast('6.2')) {
+            tg.showAlert(msg);
+        } else {
+            alert(msg);
+        }
+    };
+
+    // Check if Adsgram library is loaded
+    if (typeof window.Adsgram === 'undefined') {
+        safeAlert("Ad network not ready. Please refresh.");
         return;
     }
 
-    // Initialize only when clicked
-    const AdController = window.Adsgram.init({ blockId: "24316" });
+    if (!isLotteryOpen) {
+        safeAlert("Lottery is currently closed!");
+        return;
+    }
+
+    // Replace 'YOUR_BLOCK_ID' with your actual AdsGram ID
+    const AdController = window.Adsgram.init({ blockId: "YOUR_BLOCK_ID" });
 
     try {
         const result = await AdController.show();
         if (result.done) {
-            tg.showAlert("Ad finished! Your ticket is being processed.");
-            // Note: The ticket will appear automatically via the Firestore listener
+            safeAlert("Success! Ticket processed.");
         }
     } catch (e) {
         console.error("AdsGram Error:", e);
         if (e.error === 'no_fill') {
-            tg.showAlert("No ads available right now. Try again later.");
+            safeAlert("No ads available. Try again later.");
         } else {
-            tg.showAlert("Could not load ad.");
+            safeAlert("Ad failed to load.");
         }
     }
 }
