@@ -1,147 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daily Lottery - Claim Ticket</title>
-    <style>
-        :root {
-            --primary: #6366f1;
-            --success: #22c55e;
-            --warning: #f59e0b;
-            --dark: #1e293b;
-        }
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background-color: #0f172a;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .card {
-            background: #1e293b;
-            padding: 2rem;
-            border-radius: 24px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
-            text-align: center;
-            width: 380px;
-            border: 1px solid #334155;
-        }
-        .ticket-icon { font-size: 4rem; margin-bottom: 10px; }
-        .ticket-count {
-            font-size: 3.5rem;
-            font-weight: 800;
-            color: var(--primary);
-            text-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-        }
-        .limit-text { color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; }
-        .btn {
-            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
-            color: white;
-            border: none;
-            padding: 18px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border-radius: 16px;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(67, 56, 202, 0.4);
-        }
-        .btn:disabled {
-            background: #334155;
-            color: #64748b;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-        #progressContainer { display: none; margin-top: 20px; }
-        .bar-bg { width: 100%; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; }
-        .bar-fill { width: 0%; height: 100%; background: var(--success); transition: width 7s linear; }
-        .status { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; font-style: italic; }
-    </style>
+<meta charset="UTF-8">
+<title>RichAds Telegram Test</title>
+
+<!-- Telegram Mini App SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<!-- RichAds Telegram Script -->
+<script src="https://richinfo.co/richpartners/telegram/js/tg-ob.js"></script>
+
 </head>
-<body>
 
-    <div class="card">
-        <div class="ticket-icon">🎟️</div>
-        <h2>Daily Draw Entry</h2>
-        <div class="ticket-count" id="ticketCount">0</div>
-        <p class="limit-text" id="limitLabel">Daily Limit: 0/5 Tickets</p>
-        
-        <button id="claimBtn" class="btn">Watch Ad & Get Ticket</button>
+<body style="font-family:sans-serif;text-align:center;margin-top:40px;">
 
-        <div id="progressContainer">
-            <div class="bar-bg"><div class="bar-fill" id="barFill"></div></div>
-            <p class="status">Verifying sponsor view... don't close this tab!</p>
-        </div>
-    </div>
+<h2>RichAds Telegram Mini App Test</h2>
 
-    <script>
-        // --- CONFIGURATION ---
-        const MONETAG_LINK = "https://omg10.com/4/10692746"; 
-        const DAILY_LIMIT = 5;
-        const AD_VERIFICATION_TIME = 7000; // 7 seconds
+<button onclick="loadAds()" style="padding:15px 30px;font-size:18px;">
+Watch Ad
+</button>
 
-        // --- STATE ---
-        let tickets = parseInt(localStorage.getItem('total_tickets')) || 0;
-        let dailyCount = parseInt(localStorage.getItem('daily_count')) || 0;
-        let lastReset = localStorage.getItem('last_reset_date');
+<p id="status"></p>
 
-        // Check for Daily Reset
-        const today = new Date().toDateString();
-        if (lastReset !== today) {
-            dailyCount = 0;
-            localStorage.setItem('daily_count', 0);
-            localStorage.setItem('last_reset_date', today);
-        }
+<script>
 
-        // Update UI
-        const updateUI = () => {
-            document.getElementById('ticketCount').innerText = tickets;
-            document.getElementById('limitLabel').innerText = `Daily Limit: ${dailyCount}/${DAILY_LIMIT} Tickets`;
-            if (dailyCount >= DAILY_LIMIT) {
-                document.getElementById('claimBtn').disabled = true;
-                document.getElementById('claimBtn').innerText = "Limit Reached Today";
-            }
-        };
-        updateUI();
+let adsReady = false;
 
-        // --- LOGIC ---
-        document.getElementById('claimBtn').addEventListener('click', function() {
-            if (dailyCount >= DAILY_LIMIT) return;
+function initAds(){
+    window.TelegramAdsController = new TelegramAdsController();
 
-            // 1. Open the Monetag Direct Link
-            window.open(MONETAG_LINK, '_blank');
+    window.TelegramAdsController.initialize({
+        pubId: "1004311",   // replace with your pubId
+        appId: "6445"
+    });
 
-            // 2. Start the "Fake" Verification on your page
-            this.disabled = true;
-            this.innerText = "Ad Loading...";
-            document.getElementById('progressContainer').style.display = 'block';
-            
-            setTimeout(() => {
-                document.getElementById('barFill').style.width = '100%';
-            }, 100);
+    adsReady = true;
+    document.getElementById("status").innerText = "Ads Initialized";
+}
 
-            // 3. Reward after timer
-            setTimeout(() => {
-                tickets++;
-                dailyCount++;
-                
-                localStorage.setItem('total_tickets', tickets);
-                localStorage.setItem('daily_count', dailyCount);
-                
-                alert("🎉 Ticket Success! Your entry is registered.");
-                
-                // Reset UI for next time
-                document.getElementById('progressContainer').style.display = 'none';
-                document.getElementById('barFill').style.width = '0%';
-                this.innerText = "Get Another Ticket";
-                updateUI();
-            }, AD_VERIFICATION_TIME);
-        });
-    </script>
+function loadAds(){
+    if(!adsReady){
+        document.getElementById("status").innerText = "Ads not ready yet";
+        return;
+    }
+
+    try{
+        window.TelegramAdsController.showAd();
+        document.getElementById("status").innerText = "Loading Ad...";
+    }catch(e){
+        document.getElementById("status").innerText = "Ad Error";
+        console.log(e);
+    }
+}
+
+window.onload = function(){
+    if(window.Telegram?.WebApp){
+        Telegram.WebApp.ready();
+    }
+    initAds();
+}
+
+</script>
+
 </body>
 </html>
