@@ -1,76 +1,147 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>TADS Telegram Ads Test</title>
-
-<!-- Telegram Mini App SDK -->
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<!-- TADS Widget Script -->
-<script src="https://w.tads.me/widget.js"></script>
-
-<style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#0f172a;
-  color:white;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-}
-
-#watchAd{
-  position:fixed;
-  bottom:20px;
-  left:50%;
-  transform:translateX(-50%);
-  padding:16px 28px;
-  font-size:18px;
-  border:none;
-  border-radius:12px;
-  background:#22c55e;
-  color:white;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Lottery - Claim Ticket</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --dark: #1e293b;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #0f172a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            text-align: center;
+            width: 380px;
+            border: 1px solid #334155;
+        }
+        .ticket-icon { font-size: 4rem; margin-bottom: 10px; }
+        .ticket-count {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            text-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+        .limit-text { color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; }
+        .btn {
+            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+            color: white;
+            border: none;
+            padding: 18px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(67, 56, 202, 0.4);
+        }
+        .btn:disabled {
+            background: #334155;
+            color: #64748b;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        #progressContainer { display: none; margin-top: 20px; }
+        .bar-bg { width: 100%; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; }
+        .bar-fill { width: 0%; height: 100%; background: var(--success); transition: width 7s linear; }
+        .status { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; font-style: italic; }
+    </style>
 </head>
-
 <body>
 
-<h2>Test TADS Fullscreen Ads</h2>
+    <div class="card">
+        <div class="ticket-icon">🎟️</div>
+        <h2>Daily Draw Entry</h2>
+        <div class="ticket-count" id="ticketCount">0</div>
+        <p class="limit-text" id="limitLabel">Daily Limit: 0/5 Tickets</p>
+        
+        <button id="claimBtn" class="btn">Watch Ad & Get Ticket</button>
 
-<button id="watchAd">Watch Ad</button>
+        <div id="progressContainer">
+            <div class="bar-bg"><div class="bar-fill" id="barFill"></div></div>
+            <p class="status">Verifying sponsor view... don't close this tab!</p>
+        </div>
+    </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", function () {
+    <script>
+        // --- CONFIGURATION ---
+        const MONETAG_LINK = "https://omg10.com/4/10692746"; 
+        const DAILY_LIMIT = 5;
+        const AD_VERIFICATION_TIME = 7000; // 7 seconds
 
-  const WIDGET_ID = "9534";
-  const BTN_ID = "watchAd";
+        // --- STATE ---
+        let tickets = parseInt(localStorage.getItem('total_tickets')) || 0;
+        let dailyCount = parseInt(localStorage.getItem('daily_count')) || 0;
+        let lastReset = localStorage.getItem('last_reset_date');
 
-  const adController = window.tads.init({
-    widgetId: WIDGET_ID,
-    type: "fullscreen",
-    debug: true, // keep true for testing
-    onShowReward: (result) => {
-      console.log("Ad watched:", result);
-      alert("Ad finished!");
-    },
-    onAdsNotFound: () => {
-      console.log("No ads available");
-      alert("No ads found");
-    }
-  });
+        // Check for Daily Reset
+        const today = new Date().toDateString();
+        if (lastReset !== today) {
+            dailyCount = 0;
+            localStorage.setItem('daily_count', 0);
+            localStorage.setItem('last_reset_date', today);
+        }
 
-  document.getElementById(BTN_ID).addEventListener("click", () => {
-    adController.showAd().catch(err => {
-      console.log("Ad error:", err);
-    });
-  });
+        // Update UI
+        const updateUI = () => {
+            document.getElementById('ticketCount').innerText = tickets;
+            document.getElementById('limitLabel').innerText = `Daily Limit: ${dailyCount}/${DAILY_LIMIT} Tickets`;
+            if (dailyCount >= DAILY_LIMIT) {
+                document.getElementById('claimBtn').disabled = true;
+                document.getElementById('claimBtn').innerText = "Limit Reached Today";
+            }
+        };
+        updateUI();
 
-});
-</script>
+        // --- LOGIC ---
+        document.getElementById('claimBtn').addEventListener('click', function() {
+            if (dailyCount >= DAILY_LIMIT) return;
 
+            // 1. Open the Monetag Direct Link
+            window.open(MONETAG_LINK, '_blank');
+
+            // 2. Start the "Fake" Verification on your page
+            this.disabled = true;
+            this.innerText = "Ad Loading...";
+            document.getElementById('progressContainer').style.display = 'block';
+            
+            setTimeout(() => {
+                document.getElementById('barFill').style.width = '100%';
+            }, 100);
+
+            // 3. Reward after timer
+            setTimeout(() => {
+                tickets++;
+                dailyCount++;
+                
+                localStorage.setItem('total_tickets', tickets);
+                localStorage.setItem('daily_count', dailyCount);
+                
+                alert("🎉 Ticket Success! Your entry is registered.");
+                
+                // Reset UI for next time
+                document.getElementById('progressContainer').style.display = 'none';
+                document.getElementById('barFill').style.width = '0%';
+                this.innerText = "Get Another Ticket";
+                updateUI();
+            }, AD_VERIFICATION_TIME);
+        });
+    </script>
 </body>
 </html>
