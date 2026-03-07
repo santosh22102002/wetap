@@ -2,62 +2,60 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>RichAds Telegram Test</title>
+<title>RichAds Telegram Mini App Test</title>
 
-<!-- Telegram Mini App SDK -->
+<!-- Telegram WebApp SDK -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-<!-- RichAds Telegram Script -->
+<!-- RichAds Telegram SDK -->
 <script src="https://richinfo.co/richpartners/telegram/js/tg-ob.js"></script>
 
+<style>
+body{
+  font-family: Arial;
+  background:#0f172a;
+  color:white;
+  text-align:center;
+  margin-top:120px;
+}
+button{
+  padding:15px 30px;
+  font-size:18px;
+  background:#22c55e;
+  border:none;
+  border-radius:8px;
+  color:white;
+  cursor:pointer;
+}
+</style>
 </head>
 
-<body style="font-family:sans-serif;text-align:center;margin-top:40px;">
+<body>
 
-<h2>RichAds Telegram Mini App Test</h2>
+<h2>RichAds Playable Ads Test</h2>
 
-<button onclick="loadAds()" style="padding:15px 30px;font-size:18px;">
-Watch Ad
-</button>
-
-<p id="status"></p>
+<button onclick="showAd()">Watch Ad</button>
 
 <script>
 
-let adsReady = false;
+Telegram.WebApp.ready();
+Telegram.WebApp.expand();
 
-function initAds(){
-    window.TelegramAdsController = new TelegramAdsController();
+window.TelegramAdsController = new TelegramAdsController();
 
-    window.TelegramAdsController.initialize({
-        pubId: "1004311",   // replace with your pubId
-        appId: "6445"
-    });
+window.TelegramAdsController.initialize({
+  pubId: "1004311",
+  appId: "6445"
+});
 
-    adsReady = true;
-    document.getElementById("status").innerText = "Ads Initialized";
-}
-
-function loadAds(){
-    if(!adsReady){
-        document.getElementById("status").innerText = "Ads not ready yet";
-        return;
-    }
-
-    try{
-        window.TelegramAdsController.showAd();
-        document.getElementById("status").innerText = "Loading Ad...";
-    }catch(e){
-        document.getElementById("status").innerText = "Ad Error";
-        console.log(e);
-    }
-}
-
-window.onload = function(){
-    if(window.Telegram?.WebApp){
-        Telegram.WebApp.ready();
-    }
-    initAds();
+function showAd(){
+  window.TelegramAdsController.showAd()
+  .then(() => {
+      alert("Ad watched successfully!");
+  })
+  .catch(() => {
+      alert("Ad failed or not available.");
+  });
 }
 
 </script>
