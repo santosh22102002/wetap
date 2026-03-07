@@ -1,286 +1,76 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Paper Lotto</title>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://sad.adsgram.ai/js/adsgram-ad-sdk.js"></script>
+<meta charset="UTF-8">
+<title>TADS Telegram Ads Test</title>
 
-    <style>
-        :root {
-            --paper: #f4f1ea;
-            --ink: #33322e;
-            --accent: #bc3a3a;
-        }
-        body {
-            background-color: #222;
-            font-family: 'Courier New', Courier, monospace;
-            margin: 0;
-            padding: 10px;
-            display: flex;
-            justify-content: center;
-            color: var(--ink);
-        }
-        #app {
-            background-color: var(--paper);
-            width: 100%;
-            max-width: 450px;
-            min-height: 95vh;
-            padding: 20px;
-            position: relative;
-            box-shadow: 10px 10px 0px rgba(0,0,0,0.2);
-            background-image: radial-gradient(#dcd7ca 1px, transparent 1px);
-            background-size: 20px 20px;
-        }
-        /* Paper Header Section */
-        .header { border-bottom: 2px dashed #bbb; padding-bottom: 15px; margin-bottom: 20px; }
-        h1 { font-size: 1.5rem; margin: 0; text-align: left; }
-        .stat-line { text-align: left; margin: 5px 0; font-weight: bold; }
-        .timer { color: var(--accent); font-size: 1.1rem; }
-        .winner-tag { background: #e0dccf; padding: 10px; margin-top: 10px; font-size: 1.2rem; }
+<!-- Telegram Mini App SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-        /* Ticket Grid (10 rows x 5 columns) */
-        .ticket-area-title { margin: 20px 0 10px 0; text-transform: uppercase; font-size: 0.9rem; border-bottom: 1px solid #ccc; }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 2px;
-        }
-        .cell {
-            background: rgba(255,255,255,0.5);
-            font-size: 0.65rem;
-            padding: 8px 0;
-            text-align: center;
-        }
-        .cell.filled { color: var(--accent); font-weight: bold; }
+<!-- TADS Widget Script -->
+<script src="https://w.tads.me/widget.js"></script>
 
-        /* Claim Button */
-        #claim-btn {
-            width: 100%;
-            padding: 18px;
-            background: var(--ink);
-            color: var(--paper);
-            border: none;
-            font-family: inherit;
-            font-weight: bold;
-            margin-top: 25px;
-            cursor: pointer;
-            text-transform: uppercase;
-        }
-        #claim-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        /* Loading Overlay */
-        #loader {
-            position: fixed;
-            inset: 0;
-            background: var(--paper);
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-        .cooldown-info { font-size: 0.8rem; text-align: center; margin-top: 8px; font-style: italic; }
-    </style>
-</head>
-<body>
-
-<div id="loader">
-    <h2>AUTHENTICATING...</h2>
-    <p>Fetching from Ledger</p>
-</div>
-
-<div id="app">
-    <div class="header">
-        <h1>DAILY PAPER LOTTO</h1>
-        <div id="lottery-status" class="stat-line timer">WAITING...</div>
-        <div class="stat-line">PRIZE: 50,000 STARS</div>
-        <div id="winner-box" class="winner-tag">WINNER: PENDING...</div>
-    </div>
-
-    <div class="spacer" style="height: 30px;"></div>
-
-    <div class="ticket-area-title">YOUR REGISTERED TICKETS (<span id="count">0</span>/50)</div>
-    <div class="grid" id="grid"></div>
-
-    <button id="claim-btn" onclick="startClaimProcess()">WATCH AD TO CLAIM</button>
-    <div id="cooldown-text" class="cooldown-info"></div>
-</div>
-
-<script>
-    // Add this check at the very top of your <script> tag logic
-window.onload = () => {
-    if (typeof firebase !== 'undefined') {
-        console.log("Firebase loaded successfully!");
-        // Your firebase.initializeApp code goes here
-    } else {
-        console.error("Firebase failed to load. Check your internet or script tags.");
-    }
-};
-    // --- FIREBASE CONFIG ---
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyAK315b3-j5RrIvx0vH2OE_mdd86Zbd8Wc",
-  authDomain: "test-6f668.firebaseapp.com",
-databaseURL: "https://test-6f668-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "test-6f668",
-  storageBucket: "test-6f668.firebasestorage.app",
-  messagingSenderId: "1070554867228",
-  appId: "1:1070554867228:web:8f4abf585baa1d82f5e1d9",
-  measurementId: "G-7XZ8F2FD5K"
-};
-   // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    // --- APP STATE ---
-    const tg = window.Telegram.WebApp;
-    // Fallback user for browser testing
-    const user = tg.initDataUnsafe?.user || { id: "dev_user_123", first_name: "Tester" };
-    let myTickets = [];
-    let lastClaimTime = 0;
-
-    // --- INITIALIZE UI GRID ---
-    const grid = document.getElementById('grid');
-    for(let i=0; i<50; i++) {
-        const d = document.createElement('div');
-        d.className = 'cell';
-        d.id = `slot-${i}`;
-        d.innerText = '------';
-        grid.appendChild(d);
-    }
-
-    // --- FUNCTIONS ---
-
-    function updateAppStatus() {
-        const now = new Date();
-        const h = now.getHours();
-
-        // 5 PM (17) Start, 12 AM (0) End
-        const isLive = (h >= 17 || h < 0);
-        const isDrawing = (h >= 14 && h < 17);
-
-        const statusEl = document.getElementById('lottery-status');
-        const btn = document.getElementById('claim-btn');
-
-        if (isLive) {
-            statusEl.innerText = "STATUS: LIVE (Ends at 12 PM)";
-            checkButtonCooldown();
-        } else if (isDrawing) {
-            statusEl.innerText = "STATUS: DRAWING IN PROGRESS";
-            btn.disabled = true;
-            btn.innerText = "DRAWING...";
-        } else {
-            statusEl.innerText = "STATUS: CLOSED (Starts 5 PM)";
-            btn.disabled = true;
-            btn.innerText = "LOTTERY CLOSED";
-        }
-    }
-
-    function checkButtonCooldown() {
-        if (myTickets.length >= 50) {
-            document.getElementById('claim-btn').disabled = true;
-            document.getElementById('claim-btn').innerText = "LIMIT REACHED";
-            return;
-        }
-
-        const now = Date.now();
-        const diff = now - lastClaimTime;
-        const cooldown = 10 * 60 * 1000;
-
-        if (diff < cooldown) {
-            const rem = Math.ceil((cooldown - diff) / 1000);
-            document.getElementById('claim-btn').disabled = true;
-            document.getElementById('cooldown-text').innerText = `Next ticket in ${Math.floor(rem/60)}m ${rem%60}s`;
-        } else {
-            document.getElementById('claim-btn').disabled = false;
-            document.getElementById('claim-btn').innerText = "WATCH AD TO CLAIM";
-            document.getElementById('cooldown-text').innerText = "Ticket available!";
-        }
-    }
-    // --- INITIALIZE ADSGRAM ---
-// Place this at the top of your script, before any functions
-const AdController = window.Adsgram?.init({ 
-    blockId: "24316", // <-- ADD YOUR BLOCK ID HERE
-    debug: true 
-});
-
-    async function startClaimProcess() {
-    if (AdController) {
-        const btn = document.getElementById('claim-btn');
-        btn.disabled = true;
-        btn.innerText = "LOADING AD...";
-
-        AdController.show()
-            .then((result) => {
-                // SUCCESS: The user finished the ad.
-                // The S2S Callback you set up in Firebase will handle the ticket.
-                tg.showAlert("Success! Your ticket will arrive shortly.");
-            })
-            .catch((result) => {
-                // ERROR/SKIP: User closed the ad or it failed to load.
-                console.log("Ad result:", result);
-                tg.showAlert("You must watch the full video to get a ticket.");
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.innerText = "WATCH AD TO CLAIM";
-            });
-    } else {
-        tg.showAlert("Ad system not ready. Please refresh.");
-    }
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0f172a;
+  color:white;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
 
-    function generateTicket() {
-        // Generate number between 100000 and 999999
-        const ticketNum = Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000;
-        
-        const userRef = db.ref(`users/${user.id}`);
-        // Anti-cheat: push to backend
-        userRef.child('tickets').push(ticketNum);
-        userRef.child('lastClaim').set(Date.now());
-        console.log("Ticket Generated: ", ticketNum);
+#watchAd{
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  padding:16px 28px;
+  font-size:18px;
+  border:none;
+  border-radius:12px;
+  background:#22c55e;
+  color:white;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Test TADS Fullscreen Ads</h2>
+
+<button id="watchAd">Watch Ad</button>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+  const WIDGET_ID = "9534";
+  const BTN_ID = "watchAd";
+
+  const adController = window.tads.init({
+    widgetId: WIDGET_ID,
+    type: "fullscreen",
+    debug: true, // keep true for testing
+    onShowReward: (result) => {
+      console.log("Ad watched:", result);
+      alert("Ad finished!");
+    },
+    onAdsNotFound: () => {
+      console.log("No ads available");
+      alert("No ads found");
     }
+  });
 
-    function syncData() {
-        db.ref(`users/${user.id}`).on('value', (snap) => {
-            const data = snap.val();
-            if (data) {
-                myTickets = data.tickets ? Object.values(data.tickets) : [];
-                lastClaimTime = data.lastClaim || 0;
-                
-                document.getElementById('count').innerText = myTickets.length;
-                // Clear grid first
-                for(let i=0; i<50; i++) document.getElementById(`slot-${i}`).innerText = '------';
-                
-                myTickets.forEach((num, i) => {
-                    const el = document.getElementById(`slot-${i}`);
-                    if(el) {
-                        el.innerText = num;
-                        el.classList.add('filled');
-                    }
-                });
-            }
-            document.getElementById('loader').style.display = 'none';
-        });
+  document.getElementById(BTN_ID).addEventListener("click", () => {
+    adController.showAd().catch(err => {
+      console.log("Ad error:", err);
+    });
+  });
 
-        db.ref(`global/lastWinner`).on('value', (snap) => {
-            const winner = snap.val();
-            document.getElementById('winner-box').innerText = winner ? `WINNER: #${winner}` : "WINNER: PENDING...";
-        });
-    }
-
-    // --- INITIALIZE ---
-    window.onload = () => {
-        console.log("Firebase loaded successfully!");
-        setInterval(updateAppStatus, 1000);
-        syncData();
-        tg.expand();
-        tg.ready();
-    };
+});
 </script>
+
 </body>
 </html>
