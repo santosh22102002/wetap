@@ -3,69 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TMA Supabase Test</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <title>Telegram DB Test</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f0f2f5; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 350px; }
-        button { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 8px; background: #0088cc; color: white; font-weight: bold; cursor: pointer; }
-        #status { margin-top: 15px; font-size: 0.9rem; color: #555; }
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; background-color: #f9f9f9;}
+        .container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { width: 100%; padding: 10px; background-color: #0088cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;}
+        button:hover { background-color: #006699; }
+        #status { margin-top: 15px; font-weight: bold; text-align: center; }
+        .success { color: green; }
+        .error { color: red; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h3>Telegram & Supabase</h3>
-        <p>User: <span id="user-name">Loading...</span></p>
-        <p>ID: <span id="user-id">-</span></p>
-        <button onclick="saveToSupabase()">Save to Database</button>
-        <div id="status">Ready to test...</div>
+    <div class="container">
+        <h2>Save Telegram User</h2>
+
+        <div class="form-group">
+            <label for="tg_id">Telegram ID:</label>
+            <input type="text" id="tg_id" placeholder="e.g., 123456789">
+        </div>
+
+        <div class="form-group">
+            <label for="tg_username">Username:</label>
+            <input type="text" id="tg_username" placeholder="e.g., johndoe">
+        </div>
+
+        <button onclick="saveToDatabase()">Save to Supabase</button>
+
+        <div id="status"></div>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
+        // 1. Initialize Supabase Client
+        // REPLACE THESE WITH YOUR ACTUAL SUPABASE CREDENTIALS
         const SUPABASE_URL = 'https://bmimlksvqowgqoqheyin.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_ntMDMo4JnbSjJYSbaQXp-Q_rN0fYtVD';
+        const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ntMDMo4JnbSjJYSbaQXp-Q_rN0fYtVD';
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        const tg = window.Telegram.WebApp;
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-        // Initialize Telegram UI
-        tg.ready();
-        tg.expand();
-
-        // Get user data from Telegram
-        const user = tg.initDataUnsafe?.user;
-
-        if (user) {
-            document.getElementById('user-name').innerText = user.username || user.first_name;
-            document.getElementById('user-id').innerText = user.id;
-        } else {
-            document.getElementById('status').innerText = "❌ Not running inside Telegram";
-        }
-
-        async function saveToSupabase() {
-            if (!user) return alert("No user data found!");
-            
+        // 2. Function to save data
+        async function saveToDatabase() {
+            const tgId = document.getElementById('tg_id').value;
+            const tgUsername = document.getElementById('tg_username').value;
             const statusDiv = document.getElementById('status');
-            statusDiv.innerText = "⏳ Saving...";
 
+            // Basic validation
+            if (!tgId || !tgUsername) {
+                statusDiv.innerHTML = "<span class='error'>Please fill in both fields.</span>";
+                return;
+            }
+
+            statusDiv.innerHTML = "Saving...";
+
+            // 3. Insert data into 'telegram_users' table
             const { data, error } = await supabase
                 .from('telegram_users')
-                .upsert({ 
-                    id: user.id, 
-                    username: user.username,
-                    first_name: user.first_name,
-                    last_name: user.last_name
-                });
+                .insert([
+                    { telegram_id: tgId, username: tgUsername }
+                ]);
 
+            // 4. Handle the response
             if (error) {
-                console.error(error);
-                statusDiv.innerText = "❌ Error: " + error.message;
+                console.error('Error inserting data:', error);
+                statusDiv.innerHTML = `<span class='error'>Error: ${error.message}</span>`;
             } else {
-                statusDiv.innerText = "✅ Successfully saved to Supabase!";
-                tg.HapticFeedback.notificationOccurred('success');
+                statusDiv.innerHTML = "<span class='success'>Data saved successfully!</span>";
+                // Clear the inputs
+                document.getElementById('tg_id').value = '';
+                document.getElementById('tg_username').value = '';
             }
         }
     </script>
