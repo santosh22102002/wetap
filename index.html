@@ -326,7 +326,9 @@
 
         if (!response.ok) {
             console.error("Server error:", result.error);
-            tg.showAlert("Verification failed. Make sure you are using the Telegram mobile app.");
+            // This will now pop up the exact reason Supabase rejected it!
+            tg.showAlert("SERVER REJECTED: " + result.error); 
+            // ...
             
             // Reset button if verification fails
             btn.disabled = false;
