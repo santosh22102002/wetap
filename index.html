@@ -6,11 +6,12 @@
     <title>1UP PLAY</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #242424;
+            --bg-color: #1E1E1E;
             --text-main: #FFFFFF;
-            --text-dim: #D1D1D1;
+            --text-dim: #A0A0A0;
             --accent-yellow: #FFFF00;
         }
 
@@ -18,7 +19,7 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Roboto', sans-serif;
         }
 
         body {
@@ -27,7 +28,7 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Prevent body scroll, handle inside containers */
+            overflow: hidden;
         }
 
         /* Overlays */
@@ -56,7 +57,7 @@
 
         /* Main App Container */
         #app-container {
-            display: none; /* Hidden until loaded */
+            display: none;
             flex-direction: column;
             height: 100%;
             padding: 20px;
@@ -65,12 +66,12 @@
         /* Header Section */
         header { margin-bottom: 20px; }
         
-        h1 { font-size: 32px; font-weight: 800; margin-bottom: 5px; }
+        h1 { font-size: 32px; font-weight: 900; margin-bottom: 5px; }
         .highlight { color: var(--accent-yellow); }
         
-        h2 { font-size: 28px; font-weight: 700; color: var(--text-dim); margin-bottom: 5px; }
+        h2 { font-size: 28px; font-weight: 700; color: var(--text-dim); margin-bottom: 5px; letter-spacing: 1px; }
         h3 { font-size: 16px; font-weight: 700; color: var(--text-dim); margin-bottom: 10px; }
-        h4 { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 10px; }
+        h4 { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 15px; text-transform: uppercase; }
         
         .ticket-count-text {
             font-size: 18px;
@@ -78,27 +79,34 @@
             margin-bottom: 15px;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 8px;
         }
 
         /* Ticket Grid */
         .ticket-container {
             flex-grow: 1;
             overflow-y: auto;
-            margin-bottom: 80px; /* Space for bottom button */
+            margin-bottom: 80px;
+            padding-right: 5px;
         }
+        
+        /* Custom Scrollbar for Hacker/Minimalist vibe */
+        .ticket-container::-webkit-scrollbar { width: 4px; }
+        .ticket-container::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
         
         .ticket-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
+            gap: 12px;
             text-align: center;
         }
         
         .ticket-item {
             font-size: 14px;
             color: var(--text-dim);
-            font-family: monospace;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: 700;
+            letter-spacing: 1px;
         }
 
         /* Bottom Button */
@@ -108,26 +116,27 @@
             left: 0;
             width: 100%;
             padding: 20px;
-            background: linear-gradient(to top, var(--bg-color) 70%, transparent);
+            background: linear-gradient(to top, rgba(30,30,30,1) 60%, rgba(30,30,30,0));
         }
 
         button {
             width: 100%;
             background-color: var(--accent-yellow);
-            color: #000;
+            color: #111;
             border: none;
             border-radius: 30px;
-            padding: 15px;
+            padding: 18px;
             font-size: 20px;
-            font-weight: 800;
+            font-weight: 900;
             cursor: pointer;
-            transition: opacity 0.2s;
+            transition: opacity 0.2s, transform 0.1s;
         }
-        button:active { opacity: 0.8; }
+        button:active { opacity: 0.8; transform: scale(0.98); }
         button:disabled {
-            background-color: #555;
-            color: #888;
+            background-color: #333;
+            color: #666;
             cursor: not-allowed;
+            transform: none;
         }
 
     </style>
@@ -136,18 +145,18 @@
 
     <div id="loading-screen">
         <div class="spinner"></div>
-        <p style="margin-top: 15px; font-weight: bold;">Loading Data...</p>
+        <p style="margin-top: 15px; font-weight: 700; letter-spacing: 1px;">INITIALIZING...</p>
     </div>
 
     <div id="block-screen">
-        <h2 style="color: var(--accent-yellow); margin-bottom: 10px;">Mobile Only</h2>
-        <p>This mini-app is only available on the Telegram Mobile App.</p>
+        <h2 style="color: var(--accent-yellow); margin-bottom: 10px;">ACCESS DENIED</h2>
+        <p style="color: var(--text-dim);">This application requires the Telegram Mobile App.</p>
     </div>
 
     <div id="app-container">
         <header>
-            <h1><span class="highlight">1UP</span> PLAY</h1>
-            <h2 id="timer">0D:00H:00M:00S</h2>
+            <h1><span class="highlight">1UP</span> LOTTO</h1>
+            <h2 id="timer">00D:00H:00M:00S</h2>
             <h3>WIN MLBB WEEKLY DIAMOND PASS</h3>
             <h4 id="previous-winners">EX-WINNER ******, ******, ******</h4>
             <p class="ticket-count-text">🎟️ <span id="ticket-count">0</span></p>
@@ -167,7 +176,9 @@
         // --- 1. CONFIGURATION ---
         const SUPABASE_URL = 'https://bmimlksvqowgqoqheyin.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_ntMDMo4JnbSjJYSbaQXp-Q_rN0fYtVD';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // Fixed naming conflict here:
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         const tg = window.Telegram.WebApp;
         let userId = null;
@@ -188,7 +199,7 @@
             }
 
             // Get user ID (Fallback for testing outside TG)
-            userId = tg.initDataUnsafe?.user?.id || 'test_user_123';
+            userId = tg.initDataUnsafe?.user?.id?.toString() || 'test_user_123';
 
             // Start Clock
             startTimer();
@@ -204,21 +215,21 @@
         // --- 3. DATA FETCHING ---
         async function fetchAppData() {
             try {
-                // Fetch user tickets
-                const { data: userTickets, error: ticketError } = await supabase
+                // Fetch user tickets using the updated client name
+                const { data: userTickets, error: ticketError } = await supabaseClient
                     .from('tickets')
                     .select('ticket_code, created_at')
                     .eq('user_id', userId)
                     .order('created_at', { ascending: false });
 
-                if (userTickets) {
+                if (userTickets && userTickets.length > 0) {
                     tickets = userTickets.map(t => t.ticket_code);
                     updateTicketUI();
                     checkCooldown(userTickets[0]?.created_at);
                 }
 
-                // Fetch previous winners
-                const { data: winners } = await supabase
+                // Fetch previous winners using the updated client name
+                const { data: winners } = await supabaseClient
                     .from('winners')
                     .select('ticket_code')
                     .order('created_at', { ascending: false })
@@ -264,7 +275,7 @@
                 } else {
                     const m = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
                     const s = Math.floor((timeLeft % (1000 * 60)) / 1000);
-                    btn.innerText = `COOLDOWN: ${m}m ${s}s`;
+                    btn.innerText = `COOLDOWN: ${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
                 }
             }, 1000);
         }
@@ -279,28 +290,25 @@
         }
 
         async function handleClaim() {
-            // Trigger Ad logic here (e.g., Telegram Ads API if applicable)
-            // For now, we simulate watching an ad:
+            // Trigger Ad logic here
             tg.showPopup({
                 title: 'Watch Ad',
-                message: 'Simulating playing an ad...',
+                message: 'Simulating playing an ad to earn a ticket...',
                 buttons: [{type: 'ok'}]
             }, async () => {
                 
-                // Ad completed, generate ticket
                 const newTicket = generateTicketCode();
                 
-                // Save to Supabase
-                const { error } = await supabase
+                // Save to Supabase using the updated client name
+                const { error } = await supabaseClient
                     .from('tickets')
                     .insert([{ user_id: userId, ticket_code: newTicket }]);
 
                 if (error) {
-                    tg.showAlert("Failed to claim ticket. Try again.");
+                    tg.showAlert("Failed to claim ticket. Please try again.");
                     return;
                 }
 
-                // Update UI
                 tickets.unshift(newTicket);
                 updateTicketUI();
                 disableClaimButton(new Date().getTime());
@@ -326,7 +334,6 @@
         function startTimer() {
             setInterval(() => {
                 const now = new Date();
-                // Get next Monday at 00:00:00 UTC
                 let nextMonday = new Date();
                 nextMonday.setUTCHours(0,0,0,0);
                 nextMonday.setUTCDate(now.getUTCDate() + ((7 - now.getUTCDay() + 1) % 7 || 7));
