@@ -327,7 +327,7 @@
         if (!response.ok) {
             console.error("Server error:", result.error);
             // This will now pop up the exact reason Supabase rejected it!
-            tg.showAlert("SERVER REJECTED: " + result.error); 
+            tg.showAlert("SERVER REJECTED: " + JSON.stringify(result)); 
             // ...
             
             // Reset button if verification fails
