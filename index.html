@@ -6,6 +6,7 @@
     <title>1UP PLAY</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src='//libtl.com/sdk.js' data-zone='10688536' data-sdk='show_10688536'></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -290,31 +291,67 @@
         }
 
         async function handleClaim() {
-            // Trigger Ad logic here
-            tg.showPopup({
-                title: 'Watch Ad',
-                message: 'Simulating playing an ad to earn a ticket...',
-                buttons: [{type: 'ok'}]
-            }, async () => {
-                
-                const newTicket = generateTicketCode();
-                
-                // Save to Supabase using the updated client name
-                const { error } = await supabaseClient
-                    .from('tickets')
-                    .insert([{ user_id: userId, ticket_code: newTicket }]);
+    const btn = document.getElementById('claim-btn');
+    
+    // Disable button immediately to prevent double-tapping while the ad requests
+    btn.disabled = true;
+    btn.innerText = "LOADING AD...";
 
-                if (error) {
-                    tg.showAlert("Failed to claim ticket. Please try again.");
-                    return;
-                }
+    try {
+        // 1. Trigger the Monetag rewarded ad
+        // The code waits here until the ad is fully watched and closed
+        await show_10688536();
+        
+        // 2. If the ad finishes successfully, proceed to verify
+        btn.innerText = "VERIFYING...";
+        const newTicket = generateTicketCode();
+        
+        // Grab the secret string from the Telegram app environment
+        const initData = tg.initData; 
+        
+        // 3. Send the data to your secure Edge Function
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/claim-ticket`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_KEY}` 
+            },
+            body: JSON.stringify({
+                initData: initData,
+                ticketCode: newTicket
+            })
+        });
 
-                tickets.unshift(newTicket);
-                updateTicketUI();
-                disableClaimButton(new Date().getTime());
-                tg.HapticFeedback.notificationOccurred('success');
-            });
+        const result = await response.json();
+
+        if (!response.ok) {
+            console.error("Server error:", result.error);
+            tg.showAlert("Verification failed. Make sure you are using the Telegram mobile app.");
+            
+            // Reset button if verification fails
+            btn.disabled = false;
+            btn.innerText = "CLAIM TICKET(ADS)";
+            return;
         }
+
+        // 4. Update UI on complete success
+        tickets.unshift(newTicket);
+        updateTicketUI();
+        
+        // This function handles resetting the button text after the cooldown
+        disableClaimButton(new Date().getTime());
+        tg.HapticFeedback.notificationOccurred('success');
+
+    } catch (error) {
+        // This triggers if Monetag has no ads to show, or if the user closes it early
+        console.error("Ad failed or skipped:", error);
+        tg.showAlert("Ad closed or failed to load. Please try again to claim your ticket.");
+        
+        // Reset button so they can try again
+        btn.disabled = false;
+        btn.innerText = "CLAIM TICKET(ADS)";
+    }
+}
 
         // --- 5. UI UPDATES ---
         function updateTicketUI() {
