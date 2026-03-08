@@ -39,45 +39,42 @@
     </div>
 
     <script>
-        // 1. Initialize Supabase Client
-        // REPLACE THESE WITH YOUR ACTUAL SUPABASE CREDENTIALS
-        const SUPABASE_URL = 'https://bmimlksvqowgqoqheyin.supabase.co';
-        const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ntMDMo4JnbSjJYSbaQXp-Q_rN0fYtVD';
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    // 1. Initialize Supabase Client
+    const SUPABASE_URL = 'https://bmimlksvqowgqoqheyin.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ntMDMo4JnbSjJYSbaQXp-Q_rN0fYtVD';
+    
+    // FIX: We changed the variable name to 'supabaseClient' to avoid conflicts
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-        // 2. Function to save data
-        async function saveToDatabase() {
-            const tgId = document.getElementById('tg_id').value;
-            const tgUsername = document.getElementById('tg_username').value;
-            const statusDiv = document.getElementById('status');
+    // 2. Function to save data
+    async function saveToDatabase() {
+        const tgId = document.getElementById('tg_id').value;
+        const tgUsername = document.getElementById('tg_username').value;
+        const statusDiv = document.getElementById('status');
 
-            // Basic validation
-            if (!tgId || !tgUsername) {
-                statusDiv.innerHTML = "<span class='error'>Please fill in both fields.</span>";
-                return;
-            }
-
-            statusDiv.innerHTML = "Saving...";
-
-            // 3. Insert data into 'telegram_users' table
-            const { data, error } = await supabase
-                .from('telegram_users')
-                .insert([
-                    { telegram_id: tgId, username: tgUsername }
-                ]);
-
-            // 4. Handle the response
-            if (error) {
-                console.error('Error inserting data:', error);
-                statusDiv.innerHTML = `<span class='error'>Error: ${error.message}</span>`;
-            } else {
-                statusDiv.innerHTML = "<span class='success'>Data saved successfully!</span>";
-                // Clear the inputs
-                document.getElementById('tg_id').value = '';
-                document.getElementById('tg_username').value = '';
-            }
+        if (!tgId || !tgUsername) {
+            statusDiv.innerHTML = "<span class='error'>Please fill in both fields.</span>";
+            return;
         }
-    </script>
+
+        statusDiv.innerHTML = "Saving...";
+
+        // FIX: Make sure to use 'supabaseClient' here too
+        const { data, error } = await supabaseClient
+            .from('telegram_users')
+            .insert([
+                { telegram_id: tgId, username: tgUsername }
+            ]);
+
+        if (error) {
+            console.error('Error inserting data:', error);
+            statusDiv.innerHTML = `<span class='error'>Error: ${error.message}</span>`;
+        } else {
+            statusDiv.innerHTML = "<span class='success'>Data saved successfully!</span>";
+            document.getElementById('tg_id').value = '';
+            document.getElementById('tg_username').value = '';
+        }
+    }
+</script>
 </body>
 </html>
