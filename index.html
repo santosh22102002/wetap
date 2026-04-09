@@ -1,401 +1,111 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>1UP PLAY</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src='//libtl.com/sdk.js' data-zone='10688536' data-sdk='show_10688536'></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-color: #1E1E1E;
-            --text-main: #FFFFFF;
-            --text-dim: #A0A0A0;
-            --accent-yellow: #FFFF00;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Roboto', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* Overlays */
-        #loading-screen, #block-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: var(--bg-color);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            flex-direction: column;
-            text-align: center;
-            padding: 20px;
-        }
-        #block-screen { display: none; }
-
-        .spinner {
-            border: 4px solid rgba(255,255,255,0.1);
-            border-top: 4px solid var(--accent-yellow);
-            border-radius: 50%;
-            width: 40px; height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Main App Container */
-        #app-container {
-            display: none;
-            flex-direction: column;
-            height: 100%;
-            padding: 20px;
-        }
-
-        /* Header Section */
-        header { margin-bottom: 20px; }
-        
-        h1 { font-size: 32px; font-weight: 900; margin-bottom: 5px; }
-        .highlight { color: var(--accent-yellow); }
-        
-        h2 { font-size: 28px; font-weight: 700; color: var(--text-dim); margin-bottom: 5px; letter-spacing: 1px; }
-        h3 { font-size: 16px; font-weight: 700; color: var(--text-dim); margin-bottom: 10px; }
-        h4 { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 15px; text-transform: uppercase; }
-        
-        .ticket-count-text {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Ticket Grid */
-        .ticket-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-bottom: 80px;
-            padding-right: 5px;
-        }
-        
-        /* Custom Scrollbar for Hacker/Minimalist vibe */
-        .ticket-container::-webkit-scrollbar { width: 4px; }
-        .ticket-container::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-        
-        .ticket-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 12px;
-            text-align: center;
-        }
-        
-        .ticket-item {
-            font-size: 14px;
-            color: var(--text-dim);
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-
-        /* Bottom Button */
-        .bottom-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            padding: 20px;
-            background: linear-gradient(to top, rgba(30,30,30,1) 60%, rgba(30,30,30,0));
-        }
-
-        button {
-            width: 100%;
-            background-color: var(--accent-yellow);
-            color: #111;
-            border: none;
-            border-radius: 30px;
-            padding: 18px;
-            font-size: 20px;
-            font-weight: 900;
-            cursor: pointer;
-            transition: opacity 0.2s, transform 0.1s;
-        }
-        button:active { opacity: 0.8; transform: scale(0.98); }
-        button:disabled {
-            background-color: #333;
-            color: #666;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-    </style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { background:#0f172a; color:white; font-family:sans-serif; padding:10px;}
+input { width:60%; padding:10px;}
+button { padding:8px; margin:3px;}
+.card { padding:10px; border-bottom:1px solid #333; cursor:pointer;}
+video { width:100%; margin-top:10px;}
+</style>
 </head>
+
 <body>
 
-    <div id="loading-screen">
-        <div class="spinner"></div>
-        <p style="margin-top: 15px; font-weight: 700; letter-spacing: 1px;">INITIALIZING...</p>
-    </div>
+<h2>Anime 🎬</h2>
 
-    <div id="block-screen">
-        <h2 style="color: var(--accent-yellow); margin-bottom: 10px;">ACCESS DENIED</h2>
-        <p style="color: var(--text-dim);">This application requires the Telegram Mobile App.</p>
-    </div>
+<input id="q" placeholder="Search anime">
+<button onclick="search()">Search</button>
+<button onclick="showFav()">❤️ Fav</button>
 
-    <div id="app-container">
-        <header>
-            <h1><span class="highlight">1UP</span> LOTTO</h1>
-            <h2 id="timer">00D:00H:00M:00S</h2>
-            <h3>WIN MLBB WEEKLY DIAMOND PASS</h3>
-            <h4 id="previous-winners">EX-WINNER ******, ******, ******</h4>
-            <p class="ticket-count-text">🎟️ <span id="ticket-count">0</span></p>
-        </header>
+<div id="results"></div>
+<div id="episodes"></div>
+<div id="player"></div>
 
-        <div class="ticket-container">
-            <div class="ticket-grid" id="ticket-grid">
-                </div>
-        </div>
+<script>
+let API = "https://bids-setting-controller-element.trycloudflare.com"; // replace this
 
-        <div class="bottom-bar">
-            <button id="claim-btn" onclick="handleClaim()">CLAIM TICKET(ADS)</button>
-        </div>
-    </div>
+// SEARCH
+async function search() {
+  let q = document.getElementById("q").value;
 
-    <script>
-        // --- 1. CONFIGURATION ---
-        const SUPABASE_URL = 'https://bmimlksvqowgqoqheyin.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_ntMDMo4JnbSjJYSbaQXp-Q_rN0fYtVD';
-        
-        // Fixed naming conflict here:
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
-        const tg = window.Telegram.WebApp;
-        let userId = null;
-        let tickets = [];
-        let cooldownTimer = null;
-        const COOLDOWN_MINUTES = 30;
+  let res = await fetch(`${API}/search?q=${q}`);
+  let data = await res.json();
 
-        // --- 2. INITIALIZATION ---
-        async function initApp() {
-            tg.expand();
-            
-            // Block non-mobile platforms
-            const platform = tg.platform;
-            if (['tdesktop', 'web', 'macos', 'unknown'].includes(platform)) {
-                document.getElementById('loading-screen').style.display = 'none';
-                document.getElementById('block-screen').style.display = 'flex';
-                return;
-            }
+  let html = "";
+  data.forEach(a => {
+    html += `<div class="card" onclick="loadEpisodes('${a.title}', ${a.id})">
+      ${a.title}
+      <button onclick="addFav('${a.title}')">❤️</button>
+    </div>`;
+  });
 
-            // Get user ID (Fallback for testing outside TG)
-            userId = tg.initDataUnsafe?.user?.id?.toString() || 'test_user_123';
-
-            // Start Clock
-            startTimer();
-
-            // Fetch Data
-            await fetchAppData();
-
-            // Show App
-            document.getElementById('loading-screen').style.display = 'none';
-            document.getElementById('app-container').style.display = 'flex';
-        }
-
-        // --- 3. DATA FETCHING ---
-        async function fetchAppData() {
-            try {
-                // Fetch user tickets using the updated client name
-                const { data: userTickets, error: ticketError } = await supabaseClient
-                    .from('tickets')
-                    .select('ticket_code, created_at')
-                    .eq('user_id', userId)
-                    .order('created_at', { ascending: false });
-
-                if (userTickets && userTickets.length > 0) {
-                    tickets = userTickets.map(t => t.ticket_code);
-                    updateTicketUI();
-                    checkCooldown(userTickets[0]?.created_at);
-                }
-
-                // Fetch previous winners using the updated client name
-                const { data: winners } = await supabaseClient
-                    .from('winners')
-                    .select('ticket_code')
-                    .order('created_at', { ascending: false })
-                    .limit(3);
-
-                if (winners && winners.length > 0) {
-                    const winnerText = winners.map(w => w.ticket_code).join(', ');
-                    document.getElementById('previous-winners').innerText = `EX-WINNER ${winnerText}`;
-                }
-            } catch (err) {
-                console.error("Error fetching data:", err);
-            }
-        }
-
-        // --- 4. TICKET & COOLDOWN LOGIC ---
-        function checkCooldown(lastTicketTime) {
-            if (!lastTicketTime) return;
-            
-            const lastClaim = new Date(lastTicketTime).getTime();
-            const now = new Date().getTime();
-            const diffMs = now - lastClaim;
-            const diffMins = Math.floor(diffMs / 60000);
-
-            if (diffMins < COOLDOWN_MINUTES) {
-                disableClaimButton(lastClaim);
-            }
-        }
-
-        function disableClaimButton(lastClaimTime) {
-            const btn = document.getElementById('claim-btn');
-            btn.disabled = true;
-            
-            if(cooldownTimer) clearInterval(cooldownTimer);
-
-            cooldownTimer = setInterval(() => {
-                const now = new Date().getTime();
-                const timeLeft = (lastClaimTime + (COOLDOWN_MINUTES * 60000)) - now;
-
-                if (timeLeft <= 0) {
-                    clearInterval(cooldownTimer);
-                    btn.disabled = false;
-                    btn.innerText = "CLAIM TICKET(ADS)";
-                } else {
-                    const m = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                    const s = Math.floor((timeLeft % (1000 * 60)) / 1000);
-                    btn.innerText = `COOLDOWN: ${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                }
-            }, 1000);
-        }
-
-        function generateTicketCode() {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let result = '';
-            for (let i = 0; i < 6; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return result;
-        }
-
-        async function handleClaim() {
-    const btn = document.getElementById('claim-btn');
-    
-    // Disable button immediately to prevent double-tapping while the ad requests
-    btn.disabled = true;
-    btn.innerText = "LOADING AD...";
-
-    try {
-        // 1. Trigger the Monetag rewarded ad
-        // The code waits here until the ad is fully watched and closed
-        await show_10688536();
-        
-        // 2. If the ad finishes successfully, proceed to verify
-        btn.innerText = "VERIFYING...";
-        const newTicket = generateTicketCode();
-        
-        // Grab the secret string from the Telegram app environment
-        const initData = tg.initData; 
-        
-        // 3. Send the data to your secure Edge Function
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/claim-ticket`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_KEY}` 
-            },
-            body: JSON.stringify({
-                initData: initData,
-                ticketCode: newTicket
-            })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            console.error("Server error:", result.error);
-            // This will now pop up the exact reason Supabase rejected it!
-            tg.showAlert("SERVER REJECTED: " + JSON.stringify(result)); 
-            // ...
-            
-            // Reset button if verification fails
-            btn.disabled = false;
-            btn.innerText = "CLAIM TICKET(ADS)";
-            return;
-        }
-
-        // 4. Update UI on complete success
-        tickets.unshift(newTicket);
-        updateTicketUI();
-        
-        // This function handles resetting the button text after the cooldown
-        disableClaimButton(new Date().getTime());
-        tg.HapticFeedback.notificationOccurred('success');
-
-    } catch (error) {
-        // This triggers if Monetag has no ads to show, or if the user closes it early
-        console.error("Ad failed or skipped:", error);
-        tg.showAlert("Ad closed or failed to load. Please try again to claim your ticket.");
-        
-        // Reset button so they can try again
-        btn.disabled = false;
-        btn.innerText = "CLAIM TICKET(ADS)";
-    }
+  document.getElementById("results").innerHTML = html;
 }
 
-        // --- 5. UI UPDATES ---
-        function updateTicketUI() {
-            document.getElementById('ticket-count').innerText = tickets.length;
-            const grid = document.getElementById('ticket-grid');
-            grid.innerHTML = '';
-            
-            tickets.forEach(ticket => {
-                const div = document.createElement('div');
-                div.className = 'ticket-item';
-                div.innerText = ticket;
-                grid.appendChild(div);
-            });
-        }
+// LOAD EPISODES
+async function loadEpisodes(title, id) {
+  let res = await fetch(`${API}/episodes?anime_id=${id}`);
+  let data = await res.json();
 
-        // --- 6. TIMER LOGIC ---
-        function startTimer() {
-            setInterval(() => {
-                const now = new Date();
-                let nextMonday = new Date();
-                nextMonday.setUTCHours(0,0,0,0);
-                nextMonday.setUTCDate(now.getUTCDate() + ((7 - now.getUTCDay() + 1) % 7 || 7));
+  let html = "<h3>Episodes</h3>";
+  data.forEach(ep => {
+    html += `<button onclick="play('${title}', ${ep.ep})">${ep.ep}</button>`;
+  });
 
-                const diff = nextMonday - now;
+  document.getElementById("episodes").innerHTML = html;
+}
 
-                if (diff > 0) {
-                    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-                    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    const s = Math.floor((diff % (1000 * 60)) / 1000);
+// PLAY
+async function play(title, ep) {
+  let res = await fetch(`${API}/play?title=${title}&ep=${ep}`);
+  let data = await res.json();
 
-                    document.getElementById('timer').innerText = 
-                        `${d}D:${h.toString().padStart(2,'0')}H:${m.toString().padStart(2,'0')}M:${s.toString().padStart(2,'0')}S`;
-                } else {
-                    document.getElementById('timer').innerText = "DRAWING...";
-                }
-            }, 1000);
-        }
+  document.getElementById("player").innerHTML =
+    `<video id="v" controls autoplay src="${data.url}"></video>`;
 
-        // Boot up
-        window.onload = initApp;
+  localStorage.setItem("last", JSON.stringify({title, ep}));
 
-    </script>
+  setTimeout(() => {
+    let v = document.getElementById("v");
+    v.onended = () => play(title, ep + 1);
+  }, 1000);
+}
+
+// FAVORITES
+function addFav(title) {
+  let favs = JSON.parse(localStorage.getItem("fav") || "[]");
+  if (!favs.includes(title)) {
+    favs.push(title);
+    localStorage.setItem("fav", JSON.stringify(favs));
+  }
+}
+
+function showFav() {
+  let favs = JSON.parse(localStorage.getItem("fav") || "[]");
+
+  let html = "<h3>Favorites</h3>";
+  favs.forEach(f => {
+    html += `<div class="card" onclick="searchFav('${f}')">${f}</div>`;
+  });
+
+  document.getElementById("results").innerHTML = html;
+}
+
+function searchFav(name) {
+  document.getElementById("q").value = name;
+  search();
+}
+
+// AUTO HISTORY
+window.onload = () => {
+  let last = JSON.parse(localStorage.getItem("last") || "{}");
+  if (last.title) {
+    play(last.title, last.ep);
+  }
+};
+</script>
+
 </body>
 </html>
